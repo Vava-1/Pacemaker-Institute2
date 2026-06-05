@@ -1,0 +1,64 @@
+import { Routes, Route } from 'react-router'
+import { Suspense, lazy } from 'react'
+import { AppLayout } from './layouts/AppLayout'
+import { Spinner } from './components/ui/spinner'
+
+const Home = lazy(() => import('./pages/Home'))
+const Login = lazy(() => import('./pages/Login'))
+const Register = lazy(() => import('./pages/Register'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+
+const Courses = lazy(() => import('./pages/Courses'))
+const CourseDetail = lazy(() => import('./pages/CourseDetail'))
+const Exercises = lazy(() => import('./pages/Exercises'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard'))
+const AITutor = lazy(() => import('./pages/AITutor'))
+const LiveClasses = lazy(() => import('./pages/LiveClasses'))
+const Chat = lazy(() => import('./pages/Chat'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Subscription = lazy(() => import('./pages/Subscription'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+
+const Checkout = lazy(() => import('./pages/Checkout'))
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
+const LessonPlayer = lazy(() => import('./pages/LessonPlayer'))
+const CertificateView = lazy(() => import('./pages/CertificateView'))
+
+const NotFound = lazy(() => import('./pages/NotFound'))
+
+export default function App() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Spinner className="h-8 w-8" /></div>}>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/courses" element={<Courses />} />
+          <Route path="/courses/:slug" element={<CourseDetail />} />
+          <Route path="/courses/:slug/lessons/:lessonId" element={<LessonPlayer />} />
+          <Route path="/checkout/:courseId" element={<Checkout />} />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/certificates/:certificateNumber" element={<CertificateView />} />
+          <Route path="/exercises" element={<Exercises />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/ai-tutor" element={<AITutor />} />
+          <Route path="/live-classes" element={<LiveClasses />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/subscription" element={<Subscription />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
+    </Suspense>
+  )
+}
+
