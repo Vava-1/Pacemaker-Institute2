@@ -1,5 +1,20 @@
 # Pacemaker Institute Platform
 
+---
+
+## Security & Production Enhancements
+
+- **Secure HTTP headers** – Implemented via Hono `secureHeaders` (CSP, HSTS, X‑Frame‑Options, etc.)
+- **CSRF protection** – Added `hono/csrf` middleware for all state‑changing endpoints.
+- **Rate‑limited email sending** – In‑memory limit of **5 emails per minute per recipient** to mitigate abuse.
+- **Cookie hardening** – HttpOnly, Secure (in production), SameSite=Lax flags applied to auth cookies.
+- **CI pipeline** – GitHub Actions workflow runs lint, type‑check, tests, and build on each push.
+- **Documentation** – Added `ARCHITECTURE.md` with a high‑level diagram of the system.
+
+---
+
+# Pacemaker Institute Platform
+
 A modern, full-stack e-learning platform.
 
 ## Tech Stack

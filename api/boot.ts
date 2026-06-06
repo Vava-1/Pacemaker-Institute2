@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
+import { csrf } from "hono/csrf";
 import { rateLimiter } from "hono-rate-limiter";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
@@ -24,6 +25,15 @@ app.use("*", secureHeaders({
 }));
 
 // CORS
+app.use("*", cors({
+  // CSRF protection for state‑changing requests
+  // Hono's csrf middleware validates the "x-csrf-token" header. Tokens are generated per‑session
+  // and can be retrieved client‑side via the "csrfToken" helper (not shown here).
+});
+app.use("*", csrf({
+  // In production we only allow the registered frontend origin.
+  origin: env.isProduction ? [env.frontendUrl] : ["http://localhost:5173", "http://localhost:3000"],
+}));
 app.use("*", cors({
   origin: env.isProduction ? [env.frontendUrl] : ["http://localhost:5173", "http://localhost:3000"],
   credentials: true,

@@ -22,7 +22,29 @@ async function getSmtpConfig() {
   };
 }
 
+// Simple in‑memory rate limiter: max 5 emails per minute per recipient
+const emailRateMap = new Map<string, number[]>();
+function isRateLimited(email: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const timestamps = emailRateMap.get(email) || [];
+  // Keep only timestamps within the window
+  const recent = timestamps.filter(ts => now - ts < windowMs);
+  if (recent.length >= 5) {
+    return true;
+  }
+  recent.push(now);
+  emailRateMap.set(email, recent);
+  return false;
+}
+
 export async function sendEmail(to: string, subject: string, html: string) {
+  // Rate‑limit check
+  if (isRateLimited(to)) {
+    console.warn(`[Mailer] Rate limit exceeded for ${to}`);
+    return false;
+  }
+
   try {
     const config = await getSmtpConfig();
     
