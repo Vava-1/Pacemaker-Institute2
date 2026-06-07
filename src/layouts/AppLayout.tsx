@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/Navbar'
 import { Sidebar } from '@/components/Sidebar'
 import { Footer } from '@/components/Footer'
+import { CookieConsent } from '@/components/CookieConsent'
 
 export function AppLayout() {
   const { user } = useAuth()
@@ -21,6 +22,7 @@ export function AppLayout() {
         </main>
       </div>
       {!isAuthPage && !isAdminPage && <Footer />}
+      <CookieConsent />
     </div>
   )
 }

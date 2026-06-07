@@ -1,123 +1,282 @@
+import bcrypt from "bcrypt";
+import { eq, sql } from "drizzle-orm";
 import { getDb } from "../api/queries/connection.js";
 import {
   categories, courses, modules, lessons, exercises, badges,
   testimonials, subscriptionPlans, chatRooms, users,
 } from "./schema";
 
+const ADMIN_EMAIL = "admin@pacemaker.institute";
+const ADMIN_PASSWORD = "Admin@2024!";
+const INSTRUCTOR_EMAIL = "instructor@pacemaker.institute";
+const INSTRUCTOR_PASSWORD = "Instructor@2024!";
+const SAMPLE_STUDENT_EMAIL = "student@pacemaker.institute";
+const SAMPLE_STUDENT_PASSWORD = "Student@2024!";
+
+async function upsertUser(opts: {
+  email: string;
+  name: string;
+  password: string;
+  role: "admin" | "instructor" | "user";
+  emailVerified?: boolean;
+}) {
+  const db = getDb();
+  const existing = await db.select().from(users).where(eq(users.email, opts.email)).limit(1);
+  if (existing.length > 0) {
+    console.log(`  - User ${opts.email} already exists, skipping.`);
+    return existing[0];
+  }
+  const passwordHash = await bcrypt.hash(opts.password, 12);
+  const [result] = await db.insert(users).values({
+    email: opts.email,
+    name: opts.name,
+    passwordHash,
+    role: opts.role,
+    emailVerified: opts.emailVerified ?? true,
+    emailVerifyToken: null,
+    referralCode: `${opts.role.toUpperCase().slice(0, 3)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+  });
+  const inserted = await db.select().from(users).where(eq(users.id, result.insertId)).limit(1);
+  console.log(`  + Created ${opts.role}: ${opts.email}`);
+  return inserted[0];
+}
+
 async function seed() {
   const db = getDb();
 
-  // Seed Categories
-  const cats = await db.insert(categories).values([
-    { name: "Languages", slug: "languages", description: "Learn French, English, German, and Kiswahili from beginner to native level", icon: "Languages", color: "#3b82f6", order: 1 },
-    { name: "Exam Preparation", slug: "exam-prep", description: "Prepare for DELF, TCF, TOEFL, SAT, and Duolingo exams", icon: "GraduationCap", color: "#8b5cf6", order: 2 },
-    { name: "National Exams", slug: "national-exams", description: "Private candidate preparation for national examinations", icon: "Award", color: "#f59e0b", order: 3 },
-    { name: "Mechanics", slug: "mechanics", description: "Automotive, electrical, and plumbing technical skills", icon: "Wrench", color: "#ef4444", order: 4 },
-    { name: "Bakery", slug: "bakery", description: "Bread, pastry, and confectionery professional training", icon: "Cake", color: "#f97316", order: 5 },
-    { name: "Salon", slug: "salon", description: "Hair, nails, skincare, and makeup professional training", icon: "Scissors", color: "#ec4899", order: 6 },
-    { name: "AI Skills", slug: "ai-skills", description: "AI tools and skills tailored to your profession", icon: "Brain", color: "#10b981", order: 7 },
-  ]);
+  console.log("Seeding users...");
+  const admin = await upsertUser({
+    email: ADMIN_EMAIL,
+    name: "Platform Admin",
+    password: ADMIN_PASSWORD,
+    role: "admin",
+    emailVerified: true,
+  });
+  const instructor = await upsertUser({
+    email: INSTRUCTOR_EMAIL,
+    name: "Sample Instructor",
+    password: INSTRUCTOR_PASSWORD,
+    role: "instructor",
+    emailVerified: true,
+  });
+  await upsertUser({
+    email: SAMPLE_STUDENT_EMAIL,
+    name: "Sample Student",
+    password: SAMPLE_STUDENT_PASSWORD,
+    role: "user",
+    emailVerified: true,
+  });
 
-  // Seed Courses
-  await db.insert(courses).values([
-    // Languages
-    { title: "French for Beginners (A1)", slug: "french-beginners-a1", description: "Master the basics of French language. Learn greetings, introductions, everyday vocabulary, and essential grammar. Perfect for absolute beginners.", shortDescription: "Start your French journey from zero", categoryId: 1, instructorId: 1, level: "beginner", language: "fr", thumbnail: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800", price: "29.99", originalPrice: "59.99", duration: 1800, isFeatured: true, rating: "4.8", totalStudents: 1245, totalLessons: 24, learningOutcomes: ["Introduce yourself in French", "Hold basic conversations", "Understand French pronunciation", "Use essential grammar rules"], tags: ["french", "language", "beginner"] },
-    { title: "French Intermediate (B1-B2)", slug: "french-intermediate-b1-b2", description: "Advance your French skills with complex grammar, expanded vocabulary, and real-world conversation practice. Suitable for those with basic French knowledge.", shortDescription: "Take your French to the next level", categoryId: 1, instructorId: 1, level: "intermediate", language: "fr", thumbnail: "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800", price: "39.99", originalPrice: "79.99", duration: 2400, isFeatured: true, rating: "4.7", totalStudents: 876, totalLessons: 30, learningOutcomes: ["Express opinions fluently", "Understand French media", "Write professional emails", "Use advanced grammar"], tags: ["french", "language", "intermediate"] },
-    { title: "English Fluency Masterclass", slug: "english-fluency-masterclass", description: "Achieve native-like fluency in English. Covers advanced vocabulary, idioms, business English, and accent reduction techniques.", shortDescription: "Speak English like a native", categoryId: 1, instructorId: 2, level: "advanced", language: "en", thumbnail: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800", price: "49.99", originalPrice: "99.99", duration: 3000, rating: "4.9", totalStudents: 2341, totalLessons: 36, learningOutcomes: ["Speak with confidence", "Master business English", "Understand native speakers", "Write professionally"], tags: ["english", "language", "advanced"] },
-    { title: "German Fundamentals (A1-A2)", slug: "german-fundamentals-a1-a2", description: "Build a solid foundation in German. Learn essential vocabulary, grammar structures, and pronunciation rules from scratch.", shortDescription: "Learn German from scratch", categoryId: 1, instructorId: 3, level: "beginner", language: "de", thumbnail: "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?w=800", price: "34.99", originalPrice: "69.99", duration: 2100, rating: "4.6", totalStudents: 654, totalLessons: 26, learningOutcomes: ["Master German basics", "Understand sentence structure", "Hold simple conversations", "Read basic German texts"], tags: ["german", "language", "beginner"] },
-    { title: "Kiswahili Mastery Course", slug: "kiswahili-mastery", description: "Learn Kiswahili from beginner to advanced level. Perfect for travelers, professionals, and anyone interested in East African culture.", shortDescription: "Master the language of East Africa", categoryId: 1, instructorId: 4, level: "beginner", language: "sw", thumbnail: "https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800", price: "24.99", originalPrice: "49.99", duration: 1500, isFeatured: true, rating: "4.8", totalStudents: 1567, totalLessons: 20, learningOutcomes: ["Hold everyday conversations", "Understand Swahili culture", "Read and write in Kiswahili", "Navigate East Africa with ease"], tags: ["kiswahili", "swahili", "language"] },
-    // Exam Prep
-    { title: "DELF B1 Complete Preparation", slug: "delf-b1-preparation", description: "Comprehensive preparation for the DELF B1 exam. Includes practice tests, speaking exercises, and detailed grammar review.", shortDescription: "Pass your DELF B1 with confidence", categoryId: 2, instructorId: 1, level: "intermediate", language: "fr", thumbnail: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800", price: "44.99", originalPrice: "89.99", duration: 2700, isFeatured: true, rating: "4.9", totalStudents: 543, totalLessons: 32, learningOutcomes: ["Master DELF B1 format", "Practice with real exam questions", "Improve writing skills", "Ace the speaking test"], tags: ["delf", "french", "exam"] },
-    { title: "TOEFL iBT Full Course", slug: "toefl-ibt-full-course", description: "Complete TOEFL preparation covering reading, listening, speaking, and writing sections with full-length practice tests.", shortDescription: "Score 100+ on your TOEFL", categoryId: 2, instructorId: 2, level: "advanced", language: "en", thumbnail: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800", price: "54.99", originalPrice: "109.99", duration: 3600, rating: "4.8", totalStudents: 1876, totalLessons: 40, learningOutcomes: ["Master all 4 TOEFL sections", "Take full practice tests", "Learn test-taking strategies", "Achieve your target score"], tags: ["toefl", "english", "exam"] },
-    { title: "SAT Complete Prep Course", slug: "sat-complete-prep", description: "Comprehensive SAT preparation for Math and Evidence-Based Reading & Writing sections. Includes strategies, practice questions, and full tests.", shortDescription: "Maximize your SAT score", categoryId: 2, instructorId: 5, level: "advanced", language: "en", thumbnail: "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=800", price: "59.99", originalPrice: "119.99", duration: 4200, rating: "4.7", totalStudents: 987, totalLessons: 48, learningOutcomes: ["Master SAT Math concepts", "Improve reading comprehension", "Write strong essays", "Take 5 full practice tests"], tags: ["sat", "exam", "college"] },
-    // Mechanics
-    { title: "Automotive Mechanics Fundamentals", slug: "automotive-mechanics", description: "Learn engine repair, brake systems, electrical diagnostics, and maintenance. Hands-on training for aspiring auto technicians.", shortDescription: "Become a certified auto technician", categoryId: 4, instructorId: 6, level: "beginner", language: "en", thumbnail: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800", price: "69.99", originalPrice: "139.99", duration: 4800, isFeatured: true, rating: "4.8", totalStudents: 2341, totalLessons: 50, learningOutcomes: ["Diagnose engine problems", "Repair brake systems", "Understand electrical systems", "Perform routine maintenance"], tags: ["mechanics", "automotive", "technical"] },
-    { title: "Electrical Systems & Wiring", slug: "electrical-systems-wiring", description: "Master residential and commercial electrical systems. Learn wiring, circuit design, safety protocols, and troubleshooting.", shortDescription: "Master electrical installation", categoryId: 4, instructorId: 6, level: "intermediate", language: "en", thumbnail: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800", price: "59.99", originalPrice: "119.99", duration: 3600, rating: "4.7", totalStudents: 1234, totalLessons: 38, learningOutcomes: ["Install electrical systems", "Read wiring diagrams", "Troubleshoot circuits", "Follow safety standards"], tags: ["electrical", "technical", "wiring"] },
-    // Bakery
-    { title: "Professional Bread Baking", slug: "professional-bread-baking", description: "Master artisan bread baking from sourdough to brioche. Learn techniques used by professional bakers worldwide.", shortDescription: "Bake like a professional", categoryId: 5, instructorId: 7, level: "beginner", language: "en", thumbnail: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800", price: "39.99", originalPrice: "79.99", duration: 2400, isFeatured: true, rating: "4.9", totalStudents: 3456, totalLessons: 32, learningOutcomes: ["Make artisan sourdough", "Master fermentation", "Create various bread types", "Open your own bakery"], tags: ["bakery", "bread", "cooking"] },
-    { title: "Pastry & Cake Decoration", slug: "pastry-cake-decoration", description: "Learn French pastry techniques, cake decoration, fondant work, and chocolate art. Perfect for aspiring pastry chefs.", shortDescription: "Create stunning pastries", categoryId: 5, instructorId: 7, level: "intermediate", language: "en", thumbnail: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800", price: "44.99", originalPrice: "89.99", duration: 2700, rating: "4.8", totalStudents: 2134, totalLessons: 36, learningOutcomes: ["Make French pastries", "Decorate cakes professionally", "Work with fondant", "Create chocolate art"], tags: ["pastry", "cakes", "baking"] },
-    // Salon
-    { title: "Professional Hair Styling", slug: "professional-hair-styling", description: "Complete hair styling course covering cutting, coloring, braiding, and modern styling techniques for all hair types.", shortDescription: "Become a professional hairstylist", categoryId: 6, instructorId: 8, level: "beginner", language: "en", thumbnail: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800", price: "49.99", originalPrice: "99.99", duration: 3000, isFeatured: true, rating: "4.8", totalStudents: 1876, totalLessons: 40, learningOutcomes: ["Cut hair professionally", "Master coloring techniques", "Create braided styles", "Build a salon clientele"], tags: ["salon", "hair", "beauty"] },
-    { title: "Nail Art & Care Mastery", slug: "nail-art-care", description: "Learn manicure, pedicure, gel nails, acrylics, and creative nail art designs. Professional training for nail technicians.", shortDescription: "Create stunning nail designs", categoryId: 6, instructorId: 8, level: "beginner", language: "en", thumbnail: "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800", price: "34.99", originalPrice: "69.99", duration: 1800, rating: "4.7", totalStudents: 2345, totalLessons: 24, learningOutcomes: ["Perform professional manicures", "Apply gel and acrylic nails", "Create nail art designs", "Build a nail business"], tags: ["nails", "salon", "beauty"] },
-    // AI Skills
-    { title: "AI for Teachers & Educators", slug: "ai-for-teachers", description: "Learn how to use AI tools to create lesson plans, grade assignments, personalize learning, and enhance student engagement.", shortDescription: "Transform teaching with AI", categoryId: 7, instructorId: 9, level: "beginner", language: "en", thumbnail: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800", price: "29.99", originalPrice: "59.99", duration: 1500, isFeatured: true, rating: "4.9", totalStudents: 5432, totalLessons: 20, learningOutcomes: ["Create AI lesson plans", "Automate grading", "Personalize student learning", "Use AI tutoring tools"], tags: ["ai", "education", "teaching"] },
-    { title: "AI for Business Professionals", slug: "ai-for-business", description: "Master AI tools for data analysis, marketing automation, customer service, and strategic decision-making.", shortDescription: "Leverage AI for business growth", categoryId: 7, instructorId: 9, level: "intermediate", language: "en", thumbnail: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800", price: "39.99", originalPrice: "79.99", duration: 2100, rating: "4.8", totalStudents: 3456, totalLessons: 28, learningOutcomes: ["Analyze data with AI", "Automate marketing", "Improve customer service", "Make data-driven decisions"], tags: ["ai", "business", "automation"] },
-    { title: "AI for Healthcare Workers", slug: "ai-for-healthcare", description: "Learn how AI is transforming healthcare. Covers diagnostic tools, patient care optimization, and medical data analysis.", shortDescription: "Revolutionize patient care with AI", categoryId: 7, instructorId: 10, level: "intermediate", language: "en", thumbnail: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800", price: "49.99", originalPrice: "99.99", duration: 2400, rating: "4.7", totalStudents: 1234, totalLessons: 30, learningOutcomes: ["Use AI diagnostic tools", "Optimize patient care", "Analyze medical data", "Understand AI in medicine"], tags: ["ai", "healthcare", "medical"] },
-  ]);
+  console.log("Seeding categories...");
+  const existingCats = await db.select().from(categories);
+  if (existingCats.length === 0) {
+    await db.insert(categories).values([
+      { name: "Programming", slug: "programming", description: "Learn to code with modern languages and frameworks", icon: "Code", color: "#3b82f6", order: 1 },
+      { name: "Design", slug: "design", description: "UI/UX, graphic design, and visual arts", icon: "Palette", color: "#ec4899", order: 2 },
+      { name: "Business", slug: "business", description: "Entrepreneurship, marketing, and management", icon: "Briefcase", color: "#10b981", order: 3 },
+      { name: "Languages", slug: "languages", description: "Learn new languages from native speakers", icon: "Languages", color: "#8b5cf6", order: 4 },
+      { name: "AI Skills", slug: "ai-skills", description: "AI tools and skills tailored to your profession", icon: "Brain", color: "#06b6d4", order: 5 },
+    ]);
+  } else {
+    console.log("  - Categories already exist, skipping.");
+  }
 
-  // Seed Modules for first course
-  await db.insert(modules).values([
-    { courseId: 1, title: "Module 1: Greetings & Introductions", description: "Learn basic greetings and how to introduce yourself", order: 1 },
-    { courseId: 1, title: "Module 2: Numbers & Dates", description: "Master numbers, days, months, and telling time", order: 2 },
-    { courseId: 1, title: "Module 3: Family & Relationships", description: "Talk about family members and describe people", order: 3 },
-    { courseId: 1, title: "Module 4: Food & Dining", description: "Order food, express preferences, and shop", order: 4 },
-  ]);
+  console.log("Seeding courses...");
+  const existingCourses = await db.select().from(courses);
+  if (existingCourses.length === 0) {
+    const programmingCat = (await db.select().from(categories).where(eq(categories.slug, "programming")).limit(1))[0];
+    const designCat = (await db.select().from(categories).where(eq(categories.slug, "design")).limit(1))[0];
+    const businessCat = (await db.select().from(categories).where(eq(categories.slug, "business")).limit(1))[0];
+    const languagesCat = (await db.select().from(categories).where(eq(categories.slug, "languages")).limit(1))[0];
 
-  // Seed Lessons
-  await db.insert(lessons).values([
-    { moduleId: 1, courseId: 1, title: "Bonjour! Basic Greetings", description: "Learn to say hello, goodbye, and how are you", duration: 15, order: 1, isFree: true },
-    { moduleId: 1, courseId: 1, title: "Je m'appelle... Introducing Yourself", description: "Name, origin, and profession", duration: 20, order: 2 },
-    { moduleId: 1, courseId: 1, title: "Tu vs Vous: Formal & Informal", description: "When to use formal and informal address", duration: 18, order: 3 },
-    { moduleId: 2, courseId: 1, title: "Numbers 0-100", description: "Counting in French", duration: 25, order: 4, isFree: true },
-    { moduleId: 2, courseId: 1, title: "Days, Months & Seasons", description: "Calendar vocabulary", duration: 20, order: 5 },
-  ]);
+    const [freeCourse] = await db.insert(courses).values({
+      title: "JavaScript Fundamentals (Free)",
+      slug: "javascript-fundamentals-free",
+      description: "Start your coding journey with JavaScript. Learn variables, functions, loops, DOM manipulation, and build your first interactive web app. Perfect for absolute beginners with no prior programming experience.",
+      shortDescription: "Learn JavaScript from scratch - completely free",
+      categoryId: programmingCat?.id ?? 1,
+      instructorId: instructor.id,
+      level: "beginner",
+      language: "en",
+      thumbnail: "https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=800",
+      price: "0.00",
+      originalPrice: "0.00",
+      duration: 1200,
+      status: "published",
+      isFeatured: true,
+      rating: "4.7",
+      totalStudents: 0,
+      totalLessons: 0,
+      requirements: ["A computer with internet access", "A modern web browser (Chrome, Firefox, Safari, Edge)", "No prior coding experience required"],
+      learningOutcomes: ["Write your first JavaScript program", "Understand variables, functions, and control flow", "Manipulate the DOM to create interactive pages", "Handle user events like clicks and form submissions", "Debug common JavaScript errors"],
+      tags: ["javascript", "programming", "beginner", "free"],
+    });
 
-  // Seed Exercises
-  await db.insert(exercises).values([
-    { courseId: 1, title: "French Greetings Quiz", question: "How do you say 'Good morning' in French?", type: "multiple_choice", options: [{ text: "Bonjour", isCorrect: true }, { text: "Bonsoir", isCorrect: false }, { text: "Salut", isCorrect: false }, { text: "Au revoir", isCorrect: false }], correctAnswer: "Bonjour", explanation: "Bonjour means Good morning/hello in French. Bonsoir is good evening, Salut is informal hi/bye, Au revoir is goodbye.", difficulty: "easy", points: 10, language: "fr", isDaily: true, dailyDate: "2026-06-05" },
-    { courseId: 1, title: "French Numbers", question: "What is 'vingt' in English?", type: "multiple_choice", options: [{ text: "Ten", isCorrect: false }, { text: "Twenty", isCorrect: true }, { text: "Thirty", isCorrect: false }, { text: "Fifty", isCorrect: false }], correctAnswer: "Twenty", explanation: "Vingt means twenty in French. Dix=10, Trente=30, Cinquante=50.", difficulty: "easy", points: 10, language: "fr" },
-    { courseId: 1, title: "Fill in the Blank", question: "___ m'appelle Marie. (My name is Marie)", type: "fill_blank", correctAnswer: "Je", explanation: "'Je m'appelle' means 'My name is' or literally 'I call myself'.", difficulty: "easy", points: 15, language: "fr", isDaily: true, dailyDate: "2026-06-05" },
-    { courseId: 6, title: "DELF: Comprehension", question: "In a DELF B1 listening test, what is the best strategy?", type: "multiple_choice", options: [{ text: "Read questions before listening", isCorrect: true }, { text: "Listen without reading questions", isCorrect: false }, { text: "Skip to the next question if unsure", isCorrect: false }, { text: "Write everything you hear", isCorrect: false }], correctAnswer: "Read questions before listening", explanation: "Reading questions first helps you know what to listen for, improving comprehension and saving time.", difficulty: "medium", points: 20, language: "fr" },
-    { courseId: 7, title: "TOEFL Reading Strategy", question: "What is the recommended approach for TOEFL reading passages?", type: "multiple_choice", options: [{ text: "Skim first, then read questions, then scan for answers", isCorrect: true }, { text: "Read every word carefully first", isCorrect: false }, { text: "Skip the passage and guess", isCorrect: false }, { text: "Read only the first and last paragraph", isCorrect: false }], correctAnswer: "Skim first, then read questions, then scan for answers", explanation: "Skimming gives you the main idea. Then read questions to know what to look for, then scan the passage for specific answers.", difficulty: "medium", points: 20, language: "en", isDaily: true, dailyDate: "2026-06-05" },
-    { courseId: 14, title: "AI in Education", question: "Which AI tool is best for creating personalized lesson plans?", type: "multiple_choice", options: [{ text: "ChatGPT / Claude", isCorrect: true }, { text: "Photoshop", isCorrect: false }, { text: "Excel only", isCorrect: false }, { text: "A calculator", isCorrect: false }], correctAnswer: "ChatGPT / Claude", explanation: "LLMs like ChatGPT and Claude can generate customized lesson plans based on student needs, grade level, and learning objectives.", difficulty: "easy", points: 10, language: "en" },
-    { courseId: 10, title: "Engine Basics", question: "What is the function of the camshaft in an engine?", type: "multiple_choice", options: [{ text: "Opens and closes valves", isCorrect: true }, { text: "Powers the alternator", isCorrect: false }, { text: "Cools the engine", isCorrect: false }, { text: "Filters the oil", isCorrect: false }], correctAnswer: "Opens and closes valves", explanation: "The camshaft controls the opening and closing of intake and exhaust valves in sync with the piston movement.", difficulty: "medium", points: 20, language: "en" },
-    { courseId: 12, title: "Sourdough Starter", question: "What organism is responsible for sourdough fermentation?", type: "multiple_choice", options: [{ text: "Wild yeast and lactobacilli", isCorrect: true }, { text: "Commercial yeast only", isCorrect: false }, { text: "Baking powder", isCorrect: false }, { text: "Vinegar", isCorrect: false }], correctAnswer: "Wild yeast and lactobacilli", explanation: "Sourdough starter contains wild yeast and lactic acid bacteria (lactobacilli) that naturally leaven the bread and create its distinctive tangy flavor.", difficulty: "medium", points: 15, language: "en" },
-  ]);
+    const [paidCourse] = await db.insert(courses).values({
+      title: "Full-Stack Web Development with React & Node",
+      slug: "fullstack-react-node",
+      description: "Become a professional full-stack developer. Build production-ready web applications using React 19, TypeScript, Node.js, Hono, and MySQL. Includes authentication, payments, deployment, and best practices.",
+      shortDescription: "Master modern full-stack development",
+      categoryId: programmingCat?.id ?? 1,
+      instructorId: instructor.id,
+      level: "intermediate",
+      language: "en",
+      thumbnail: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800",
+      price: "49.99",
+      originalPrice: "99.99",
+      duration: 3600,
+      status: "published",
+      isFeatured: true,
+      rating: "4.9",
+      totalStudents: 0,
+      totalLessons: 0,
+      requirements: ["Basic JavaScript knowledge", "Familiarity with HTML and CSS", "A computer with Node.js 20+ installed"],
+      learningOutcomes: ["Build full-stack apps with React 19 and TypeScript", "Create RESTful APIs with Hono", "Design relational databases with Drizzle ORM", "Implement authentication with JWT", "Process payments with Stripe", "Deploy to production on Render"],
+      tags: ["react", "nodejs", "typescript", "fullstack"],
+    });
 
-  // Seed Badges
-  await db.insert(badges).values([
-    { name: "First Steps", description: "Complete your first exercise", icon: "Footprints", color: "#3b82f6", requirementType: "exercises", requirementValue: 1, points: 10 },
-    { name: "Study Streak 7", description: "Maintain a 7-day study streak", icon: "Flame", color: "#f97316", requirementType: "streak", requirementValue: 7, points: 50 },
-    { name: "Study Streak 30", description: "Maintain a 30-day study streak", icon: "Fire", color: "#ef4444", requirementType: "streak", requirementValue: 30, points: 200 },
-    { name: "Course Completer", description: "Complete your first course", icon: "GraduationCap", color: "#8b5cf6", requirementType: "courses", requirementValue: 1, points: 100 },
-    { name: "Knowledge Seeker", description: "Complete 5 courses", icon: "BookOpen", color: "#10b981", requirementType: "courses", requirementValue: 5, points: 300 },
-    { name: "Study Marathon", description: "Study for 100 hours total", icon: "Clock", color: "#f59e0b", requirementType: "hours", requirementValue: 100, points: 150 },
-    { name: "Perfect Score", description: "Get 100% on any exercise", icon: "Target", color: "#ec4899", requirementType: "score", requirementValue: 100, points: 50 },
-    { name: "Exercise Warrior", description: "Complete 50 exercises", icon: "Trophy", color: "#6366f1", requirementType: "exercises", requirementValue: 50, points: 200 },
-    { name: "Language Master", description: "Complete a language course", icon: "Languages", color: "#06b6d4", requirementType: "courses", requirementValue: 1, points: 150 },
-    { name: "AI Pioneer", description: "Complete an AI Skills course", icon: "Brain", color: "#10b981", requirementType: "courses", requirementValue: 1, points: 150 },
-  ]);
+    console.log("Seeding modules & lessons for free course...");
+    const [mod1] = await db.insert(modules).values({
+      courseId: freeCourse.insertId,
+      title: "Getting Started with JavaScript",
+      description: "Set up your environment and write your first program",
+      order: 1,
+    });
+    const [mod2] = await db.insert(modules).values({
+      courseId: freeCourse.insertId,
+      title: "Variables and Data Types",
+      description: "Learn how to store and manipulate data",
+      order: 2,
+    });
+    const [mod3] = await db.insert(modules).values({
+      courseId: freeCourse.insertId,
+      title: "Control Flow",
+      description: "Make decisions and repeat actions in your code",
+      order: 3,
+    });
 
-  // Seed Testimonials
-  await db.insert(testimonials).values([
-    { name: "Sarah M.", role: "Language Student", content: "Pacemaker Institute transformed my French learning journey. The AI tutor is incredibly helpful, and the daily exercises keep me motivated. I went from complete beginner to passing DELF B1 in just 6 months!", rating: 5, isFeatured: true },
-    { name: "Jean-Pierre K.", role: "Mechanics Graduate", content: "The automotive mechanics course gave me skills that helped me start my own repair shop. The hands-on approach and expert instructors made all the difference. Now I employ 3 people!", rating: 5, isFeatured: true },
-    { name: "Amina N.", role: "Bakery Owner", content: "I always dreamed of opening a bakery. The professional bread baking course taught me everything from sourdough to croissants. The daily exercises and leaderboard kept me competitive and engaged.", rating: 5, isFeatured: true },
-    { name: "David O.", role: "Teacher", content: "The AI for Teachers course completely changed how I prepare lessons. I save 10+ hours per week using AI tools I learned here. My students are more engaged than ever.", rating: 5, isFeatured: true },
-    { name: "Grace W.", role: "Salon Professional", content: "From knowing nothing about hair to running my own salon in 8 months. The structured learning path and supportive community made this possible. Highly recommend!", rating: 5, isFeatured: true },
-    { name: "Robert H.", role: "SAT Student", content: "Scored 1480 on my SAT thanks to this platform! The practice tests and AI explanations for wrong answers were game-changers. The study streak feature kept me consistent.", rating: 5, isFeatured: true },
-  ]);
+    await db.insert(lessons).values([
+      { moduleId: mod1.insertId, courseId: freeCourse.insertId, title: "Welcome and Setup", description: "Install VS Code and Node.js", contentText: "In this lesson, we install Node.js 20+ and VS Code. We write our first `console.log('Hello, world!')` and run it with `node app.js`.", duration: 10, order: 1, isFree: true },
+      { moduleId: mod1.insertId, courseId: freeCourse.insertId, title: "Your First Script", description: "Write and run a basic JavaScript file", contentText: "JavaScript files end in `.js`. Create `app.js`, add `console.log('Hello!')`, and run it with `node app.js`.", duration: 15, order: 2, isFree: true },
+      { moduleId: mod2.insertId, courseId: freeCourse.insertId, title: "let, const, and var", description: "Declare variables", contentText: "Use `const` by default, `let` when reassignment is needed, avoid `var`.", duration: 12, order: 3, isFree: false },
+      { moduleId: mod2.insertId, courseId: freeCourse.insertId, title: "Strings, Numbers, Booleans", description: "Primitive data types", contentText: "JavaScript has 7 primitive types. The most common are `string`, `number`, and `boolean`.", duration: 18, order: 4, isFree: false },
+      { moduleId: mod3.insertId, courseId: freeCourse.insertId, title: "if / else statements", description: "Conditional logic", contentText: "`if (condition) { ... } else { ... }` lets you branch.", duration: 14, order: 5, isFree: false },
+      { moduleId: mod3.insertId, courseId: freeCourse.insertId, title: "for and while loops", description: "Repetition", contentText: "`for (let i = 0; i < 10; i++) { ... }` loops a fixed number of times.", duration: 16, order: 6, isFree: false },
+    ]);
 
-  // Seed Subscription Plans
-  await db.insert(subscriptionPlans).values([
-    { name: "Free", slug: "free", description: "Basic access to get started", price: "0.00", billingPeriod: "monthly", features: ["Access to free courses", "3 daily exercises", "Basic AI Tutor (5 queries/day)", "Community chat access"] },
-    { name: "Pro", slug: "pro", description: "Full access for serious learners", price: "19.99", billingPeriod: "monthly", features: ["Unlimited course access", "Unlimited daily exercises", "Full AI Tutor access", "Priority live classes", "Downloadable certificates", "Ad-free experience", "Study progress analytics"] },
-    { name: "Expert", slug: "expert", description: "Premium experience with mentoring", price: "39.99", billingPeriod: "monthly", features: ["Everything in Pro", "1-on-1 mentoring sessions", "Custom learning paths", "Early access to new courses", "Career guidance", "Job placement support", "Exclusive workshops"] },
-  ]);
+    console.log("Seeding modules & lessons for paid course...");
+    const [pmod1] = await db.insert(modules).values({ courseId: paidCourse.insertId, title: "React Fundamentals", description: "Components, JSX, and props", order: 1 });
+    const [pmod2] = await db.insert(modules).values({ courseId: paidCourse.insertId, title: "Backend with Hono", description: "Routing, middleware, and tRPC", order: 2 });
+    const [pmod3] = await db.insert(modules).values({ courseId: paidCourse.insertId, title: "Database with Drizzle", description: "Schemas, queries, and migrations", order: 3 });
+    const [pmod4] = await db.insert(modules).values({ courseId: paidCourse.insertId, title: "Production Deployment", description: "Deploy to Render with CI/CD", order: 4 });
 
-  // Seed Chat Rooms
-  await db.insert(chatRooms).values([
-    { name: "General Discussion", slug: "general", description: "Chat about anything learning-related", category: "general" },
-    { name: "French Learners", slug: "french-learners", description: "Practice French with fellow students", category: "languages" },
-    { name: "English Practice", slug: "english-practice", description: "Improve your English together", category: "languages" },
-    { name: "Exam Prep Support", slug: "exam-prep", description: "Get help preparing for exams", category: "exam-prep" },
-    { name: "Mechanics Workshop", slug: "mechanics-workshop", description: "Technical discussions and tips", category: "mechanics" },
-    { name: "Bakery & Cooking", slug: "bakery-cooking", description: "Share recipes and techniques", category: "bakery" },
-    { name: "Salon Professionals", slug: "salon-pro", description: "Beauty industry discussions", category: "salon" },
-    { name: "AI Tools & Tips", slug: "ai-tools", description: "Discuss AI tools and applications", category: "ai-skills" },
-  ]);
+    await db.insert(lessons).values([
+      { moduleId: pmod1.insertId, courseId: paidCourse.insertId, title: "Setting up a React project with Vite", description: "Use Vite to bootstrap a React 19 + TypeScript app", contentText: "`npm create vite@latest my-app -- --template react-ts`", duration: 20, order: 1, isFree: true },
+      { moduleId: pmod1.insertId, courseId: paidCourse.insertId, title: "JSX and Components", description: "Build your first reusable component", contentText: "JSX lets you write HTML in JavaScript. Components are functions that return JSX.", duration: 25, order: 2, isFree: false },
+      { moduleId: pmod2.insertId, courseId: paidCourse.insertId, title: "Your first Hono server", description: "Spin up an HTTP server in 5 minutes", contentText: "`const app = new Hono(); app.get('/', (c) => c.text('Hello'));`", duration: 30, order: 3, isFree: false },
+      { moduleId: pmod2.insertId, courseId: paidCourse.insertId, title: "tRPC for type-safe APIs", description: "End-to-end types with tRPC", contentText: "tRPC lets the client call server functions with full TypeScript types.", duration: 35, order: 4, isFree: false },
+      { moduleId: pmod3.insertId, courseId: paidCourse.insertId, title: "Designing a Drizzle schema", description: "Model your domain with mysqlTable", contentText: "Drizzle gives you type-safe SQL with zero codegen.", duration: 28, order: 5, isFree: false },
+      { moduleId: pmod4.insertId, courseId: paidCourse.insertId, title: "Deploying to Render", description: "One-click Blueprint deploy", contentText: "Connect your GitHub repo, Render reads `render.yaml` and deploys automatically.", duration: 22, order: 6, isFree: false },
+    ]);
 
-  console.log("Database seeded successfully!");
+    await db.update(courses).set({ totalLessons: 6 }).where(eq(courses.id, freeCourse.insertId));
+    await db.update(courses).set({ totalLessons: 6 }).where(eq(courses.id, paidCourse.insertId));
+  } else {
+    console.log("  - Courses already exist, skipping.");
+  }
+
+  console.log("Seeding daily exercises (quizzes)...");
+  const existingEx = await db.select().from(exercises);
+  if (existingEx.length === 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    const programmingCat = (await db.select().from(categories).where(eq(categories.slug, "programming")).limit(1))[0];
+    const designCat = (await db.select().from(categories).where(eq(categories.slug, "design")).limit(1))[0];
+    const businessCat = (await db.select().from(categories).where(eq(categories.slug, "business")).limit(1))[0];
+
+    await db.insert(exercises).values([
+      { categoryId: programmingCat?.id, title: "JavaScript: typeof", question: "What does `typeof null` return in JavaScript?", type: "multiple_choice", options: [{ text: "'null'", isCorrect: false }, { text: "'object'", isCorrect: true }, { text: "'undefined'", isCorrect: false }, { text: "'boolean'", isCorrect: false }], correctAnswer: "'object'", explanation: "This is a famous JavaScript bug kept for backwards compatibility - `typeof null` returns `'object'`.", difficulty: "easy", points: 10, language: "en", isDaily: true, dailyDate: today },
+      { categoryId: programmingCat?.id, title: "React: useState", question: "Which hook lets you add local state to a function component?", type: "multiple_choice", options: [{ text: "useEffect", isCorrect: false }, { text: "useState", isCorrect: true }, { text: "useMemo", isCorrect: false }, { text: "useRef", isCorrect: false }], correctAnswer: "useState", explanation: "`useState` returns a state value and an updater function. `useEffect` runs side effects, `useMemo` memoizes values.", difficulty: "easy", points: 10, language: "en" },
+      { categoryId: designCat?.id, title: "Design: Contrast", question: "What is the WCAG minimum contrast ratio for normal text?", type: "multiple_choice", options: [{ text: "1:1", isCorrect: false }, { text: "3:1", isCorrect: false }, { text: "4.5:1", isCorrect: true }, { text: "7:1", isCorrect: false }], correctAnswer: "4.5:1", explanation: "WCAG AA requires 4.5:1 for normal text and 3:1 for large text. AAA requires 7:1.", difficulty: "medium", points: 15, language: "en", isDaily: true, dailyDate: today },
+      { categoryId: businessCat?.id, title: "Business: KPI", question: "What does KPI stand for?", type: "multiple_choice", options: [{ text: "Key Performance Indicator", isCorrect: true }, { text: "Knowledge Process Integration", isCorrect: false }, { text: "Kinetic Profit Index", isCorrect: false }, { text: "Key Product Information", isCorrect: false }], correctAnswer: "Key Performance Indicator", explanation: "KPIs are quantifiable metrics that reflect the success of an organization.", difficulty: "easy", points: 10, language: "en" },
+      { categoryId: programmingCat?.id, title: "JavaScript: Arrays", question: "Which method creates a NEW array with the results of a function called on every element?", type: "multiple_choice", options: [{ text: "forEach", isCorrect: false }, { text: "map", isCorrect: true }, { text: "filter", isCorrect: false }, { text: "reduce", isCorrect: false }], correctAnswer: "map", explanation: "`map` returns a new array. `forEach` returns undefined. `filter` returns only matching items. `reduce` returns a single value.", difficulty: "medium", points: 15, language: "en", isDaily: true, dailyDate: today },
+    ]);
+  } else {
+    console.log("  - Exercises already exist, skipping.");
+  }
+
+  console.log("Seeding badges...");
+  const existingBadges = await db.select().from(badges);
+  if (existingBadges.length === 0) {
+    await db.insert(badges).values([
+      { name: "First Steps", description: "Complete your first exercise", icon: "Footprints", color: "#3b82f6", requirementType: "exercises", requirementValue: 1, points: 10 },
+      { name: "Week Warrior", description: "Maintain a 7-day study streak", icon: "Flame", color: "#f97316", requirementType: "streak", requirementValue: 7, points: 50 },
+      { name: "Month Master", description: "Maintain a 30-day study streak", icon: "Fire", color: "#ef4444", requirementType: "streak", requirementValue: 30, points: 200 },
+      { name: "Course Completer", description: "Complete your first course", icon: "GraduationCap", color: "#8b5cf6", requirementType: "courses", requirementValue: 1, points: 100 },
+      { name: "Knowledge Seeker", description: "Complete 5 courses", icon: "BookOpen", color: "#10b981", requirementType: "courses", requirementValue: 5, points: 300 },
+      { name: "Century Club", description: "Study for 100 hours total", icon: "Clock", color: "#f59e0b", requirementType: "hours", requirementValue: 100, points: 150 },
+      { name: "Perfect Score", description: "Get 100% on any exercise", icon: "Target", color: "#ec4899", requirementType: "score", requirementValue: 100, points: 50 },
+      { name: "Quiz Champion", description: "Complete 50 exercises", icon: "Trophy", color: "#6366f1", requirementType: "exercises", requirementValue: 50, points: 200 },
+    ]);
+  } else {
+    console.log("  - Badges already exist, skipping.");
+  }
+
+  console.log("Seeding testimonials...");
+  const existingTest = await db.select().from(testimonials);
+  if (existingTest.length === 0) {
+    await db.insert(testimonials).values([
+      { name: "Sarah M.", role: "Programming Student", content: "Pacemaker Institute transformed my learning journey. The hands-on projects and AI tutor helped me land my first developer job in 4 months.", rating: 5, isFeatured: true },
+      { name: "David O.", role: "Designer", content: "The design courses are world-class. I went from complete beginner to designing product pages for real clients within weeks.", rating: 5, isFeatured: true },
+      { name: "Amina N.", role: "Business Owner", content: "The business track gave me the confidence and skills to launch my online store. The community is incredibly supportive.", rating: 5, isFeatured: true },
+      { name: "Robert H.", role: "SAT Student", content: "Scored 1480 on my SAT thanks to this platform. The practice tests and detailed explanations were game-changers.", rating: 5, isFeatured: true },
+      { name: "Grace W.", role: "Language Learner", content: "From zero French to holding conversations with native speakers in 3 months. The structured path kept me on track.", rating: 5, isFeatured: true },
+      { name: "Jean-Pierre K.", role: "Graduate", content: "The certification at the end gave me real credibility with employers. I received 3 job offers in my first month.", rating: 5, isFeatured: true },
+    ]);
+  } else {
+    console.log("  - Testimonials already exist, skipping.");
+  }
+
+  console.log("Seeding subscription plans...");
+  const existingPlans = await db.select().from(subscriptionPlans);
+  if (existingPlans.length === 0) {
+    await db.insert(subscriptionPlans).values([
+      { name: "Free", slug: "free", description: "Get started with the basics", price: "0.00", billingPeriod: "monthly", features: ["Access to 2 free courses", "3 daily exercises", "Basic AI tutor (5 queries/day)", "Community forum access"] },
+      { name: "Pro", slug: "pro", description: "Unlimited access for serious learners", price: "19.99", billingPeriod: "monthly", features: ["Unlimited course access", "Unlimited daily exercises", "Full AI tutor access", "Priority live classes", "Downloadable certificates", "Ad-free experience", "Progress analytics"] },
+      { name: "Pro Annual", slug: "pro-annual", description: "Pro at 2 months free", price: "199.99", billingPeriod: "yearly", features: ["Everything in Pro", "Save 17% vs monthly", "Priority email support"] },
+      { name: "Expert", slug: "expert", description: "Premium experience with mentoring", price: "39.99", billingPeriod: "monthly", features: ["Everything in Pro", "1-on-1 mentoring sessions", "Custom learning paths", "Early access to new courses", "Career guidance", "Job placement support"] },
+    ]);
+  } else {
+    console.log("  - Subscription plans already exist, skipping.");
+  }
+
+  console.log("Seeding chat rooms...");
+  const existingRooms = await db.select().from(chatRooms);
+  if (existingRooms.length === 0) {
+    await db.insert(chatRooms).values([
+      { name: "General", slug: "general", description: "Say hi to the community", category: "general" },
+      { name: "Programming Help", slug: "programming-help", description: "Get help with code", category: "programming" },
+      { name: "Design Feedback", slug: "design-feedback", description: "Share your work for critique", category: "design" },
+      { name: "Business & Marketing", slug: "business-marketing", description: "Discuss entrepreneurship", category: "business" },
+      { name: "Language Exchange", slug: "language-exchange", description: "Practice with other learners", category: "languages" },
+      { name: "AI Tools", slug: "ai-tools", description: "Share AI tips and tricks", category: "ai-skills" },
+    ]);
+  } else {
+    console.log("  - Chat rooms already exist, skipping.");
+  }
+
+  console.log("\n========================================");
+  console.log("Seeding complete!");
+  console.log("========================================");
+  console.log("Login credentials:");
+  console.log(`  Admin:      ${ADMIN_EMAIL}      / ${ADMIN_PASSWORD}`);
+  console.log(`  Instructor: ${INSTRUCTOR_EMAIL} / ${INSTRUCTOR_PASSWORD}`);
+  console.log(`  Student:    ${SAMPLE_STUDENT_EMAIL}  / ${SAMPLE_STUDENT_PASSWORD}`);
+  console.log("========================================");
+  console.log("\n!! IMPORTANT: Change the admin password after first login. !!");
+  console.log("========================================\n");
 }
 
-seed().catch(console.error);
+seed().catch((err) => {
+  console.error("Seeding failed:", err);
+  process.exit(1);
+});

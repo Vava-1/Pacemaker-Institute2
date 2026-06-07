@@ -2,6 +2,7 @@ import { ErrorMessages } from "@contracts/constants";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { logger } from "./lib/logger";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -38,6 +39,22 @@ function requireRole(roles: string[]) {
   });
 }
 
-export const authedQuery = t.procedure.use(requireAuth);
+const errorLogging = t.middleware(async (opts) => {
+  try {
+    return await opts.next();
+  } catch (err) {
+    const e = err as TRPCError;
+    logger.error("tRPC error", {
+      path: opts.path,
+      type: opts.type,
+      code: e?.code,
+      message: e?.message,
+      cause: (e as any)?.cause?.message,
+    });
+    throw err;
+  }
+});
+
+export const authedQuery = t.procedure.use(errorLogging).use(requireAuth);
 export const instructorQuery = authedQuery.use(requireRole(["instructor", "admin"]));
 export const adminQuery = authedQuery.use(requireRole(["admin"]));

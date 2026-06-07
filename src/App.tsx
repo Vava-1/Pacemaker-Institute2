@@ -28,6 +28,9 @@ const LessonPlayer = lazy(() => import('./pages/LessonPlayer'))
 const CertificateView = lazy(() => import('./pages/CertificateView'))
 
 const NotFound = lazy(() => import('./pages/NotFound'))
+const Terms = lazy(() => import('./pages/Terms'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const Cookies = lazy(() => import('./pages/Cookies'))
 
 export default function App() {
   return (
@@ -55,6 +58,9 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/cookies" element={<Cookies />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

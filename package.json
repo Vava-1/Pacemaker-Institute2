@@ -9,12 +9,16 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
+    "prestart": "npm run db:push",
     "check": "tsc -b",
     "format": "prettier --write .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx db/seed.ts",
+    "db:reset": "drizzle-kit push --force && tsx db/seed.ts",
+    "backup:db": "bash scripts/backup-db.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
