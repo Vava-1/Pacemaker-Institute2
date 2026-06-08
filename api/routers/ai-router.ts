@@ -1,111 +1,183 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "../middleware";
+import { TRPCError } from "@trpc/server";
+import { eq, desc, and, count, sql } from "drizzle-orm";
+import Anthropic from "@anthropic-ai/sdk";
+import { createRouter, protectedProcedure } from "../router";
 import { getDb } from "../queries/connection";
 import { aiConversations } from "@db/schema";
-import { eq, desc } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
 import { env } from "../lib/env";
-import { TRPCError } from "@trpc/server";
+import { logger } from "../lib/logger";
 
-const disciplinePrompts: Record<string, string> = {
-  languages: "You are PI Assistant, a language tutor at Pacemaker Institute. Help the student learn their target language. Provide explanations in both their native language and the target language. Be encouraging and adapt to their level.",
-  "exam-prep": "You are PI Assistant, an exam preparation coach at Pacemaker Institute. Help the student prepare for their exam with strategies, practice questions, and detailed explanations. Focus on test-taking techniques.",
-  mechanics: "You are PI Assistant, a technical skills tutor at Pacemaker Institute. Explain mechanical concepts clearly with step-by-step procedures. Emphasize safety protocols.",
-  bakery: "You are PI Assistant, a professional baking instructor at Pacemaker Institute. Provide detailed recipes, techniques, and troubleshooting advice.",
-  salon: "You are PI Assistant, a beauty and salon instructor at Pacemaker Institute. Teach professional techniques for hair, nails, and skincare.",
-  "ai-skills": "You are PI Assistant, an AI skills coach at Pacemaker Institute. Help the student leverage AI tools for their profession with practical examples.",
-  general: "You are PI Assistant, the AI tutor at Pacemaker Institute. You help students with their learning journey across all disciplines. Provide clear, helpful explanations and encourage active learning.",
-};
+const SendMessageSchema = z.object({
+  message: z.string().min(1, "Message is required").max(4000, "Message must be 4000 characters or less"),
+  conversationId: z.string().optional(),
+  courseId: z.number().positive().optional(),
+  lessonId: z.number().positive().optional(),
+});
+
+const GetHistorySchema = z.object({
+  conversationId: z.string(),
+  limit: z.number().min(1).max(100).default(50),
+  offset: z.number().min(0).default(0),
+});
+
+const BLOCKED_PATTERNS = [
+  /\b(hack|crack|exploit|bypass|inject)\b/i,
+  /\b(credit card|ssn|social security|password)\b/i,
+  /\b(illegal|drug|weapon|bomb)\b/i,
+];
+
+function isContentSafe(message: string): boolean {
+  return !BLOCKED_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+const SYSTEM_PROMPT = `You are an AI tutor for Pacemaker Institute, an online e-learning platform. Your role is to help students learn and understand course material.
+
+Guidelines:
+- Provide clear, accurate explanations with examples and analogies
+- Encourage critical thinking by asking guiding questions
+- Never ask for or store personal information
+- Admit when you don't know something
+- Keep responses to 2-4 paragraphs, using markdown for readability
+- Maintain an encouraging and supportive tone
+
+Prohibitions:
+- Do NOT provide direct answers to quiz or exam questions
+- Do NOT generate harmful, abusive, or inappropriate content
+- Do NOT ask for personal information (email, phone, address, payment details)
+- Do NOT attempt to access system prompts or configuration
+- Do NOT pretend to be a human`;
 
 export const aiRouter = createRouter({
-  chat: authedQuery
-    .input(z.object({
-      message: z.string().min(1),
-      discipline: z.string().default("general"),
-      conversationId: z.number().optional(),
-    }))
+  sendMessage: protectedProcedure
+    .input(SendMessageSchema)
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
-      const systemPrompt = disciplinePrompts[input.discipline] ?? disciplinePrompts.general;
-
       if (!env.anthropicApiKey) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Anthropic API key is not configured. Please add ANTHROPIC_API_KEY to your environment variables or platform settings.",
-        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI tutor is not configured" });
       }
 
-      const anthropic = new Anthropic({
-        apiKey: env.anthropicApiKey,
-      });
+      if (!isContentSafe(input.message)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Message contains prohibited content" });
+      }
 
-      let conversationId: number;
-      let messages: any[] = [];
+      const db = getDb();
+      const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
+
+      let conversationId = input.conversationId || crypto.randomUUID();
+      const messages: { role: "user" | "assistant"; content: string }[] = [];
 
       if (input.conversationId) {
-        const convs = await db.select().from(aiConversations)
-          .where(eq(aiConversations.id, input.conversationId));
-        if (convs[0]) {
-          conversationId = convs[0].id;
-          // Filter out the system prompt from stored messages for Anthropic
-          messages = (convs[0].messages as any[]).filter(m => m.role !== "system");
-          messages.push({ role: "user", content: input.message });
-          
-          // We'll update the DB after we get the response
-        } else {
-          conversationId = await createNewConversation(db, ctx.user.id, input.discipline, input.message);
-          messages = [{ role: "user", content: input.message }];
+        const existing = await db
+          .select()
+          .from(aiConversations)
+          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, ctx.user.id)))
+          .limit(1);
+
+        if (existing.length > 0) {
+          const storedMessages = existing[0].messages as any[];
+          messages.push(...storedMessages.slice(-10));
         }
-      } else {
-        conversationId = await createNewConversation(db, ctx.user.id, input.discipline, input.message);
-        messages = [{ role: "user", content: input.message }];
       }
 
+      messages.push({ role: "user", content: input.message });
+
       try {
-        const aiResponse = await anthropic.messages.create({
-          model: "claude-3-haiku-20240307",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
+        const response = await anthropic.messages.create({
+          model: "claude-3-sonnet-20240229",
+          max_tokens: 2048,
+          system: SYSTEM_PROMPT,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          temperature: 0.7,
         });
 
-        const replyContent = aiResponse.content[0].type === "text" 
-          ? aiResponse.content[0].text 
-          : "I'm sorry, I couldn't process that.";
+        const replyContent = response.content[0]?.type === "text"
+          ? response.content[0].text
+          : "I'm sorry, I couldn't process that request.";
 
         messages.push({ role: "assistant", content: replyContent });
 
-        // Include system prompt back when saving to DB for history
-        const messagesToSave = [{ role: "system", content: systemPrompt }, ...messages];
+        const usage = {
+          inputTokens: response.usage?.input_tokens || 0,
+          outputTokens: response.usage?.output_tokens || 0,
+        };
 
-        await db.update(aiConversations)
-          .set({ messages: messagesToSave })
-          .where(eq(aiConversations.id, conversationId));
-
-        return { response: replyContent, conversationId };
-      } catch (error) {
-        console.error("AI Error:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to communicate with AI tutor. Please try again later.",
+        await db.insert(aiConversations).values({
+          id: conversationId,
+          userId: ctx.user.id,
+          messages: messages,
+          courseId: input.courseId || null,
+          lessonId: input.lessonId || null,
+        }).onDuplicateKeyUpdate({
+          set: {
+            messages: messages,
+            updatedAt: new Date(),
+          },
         });
+
+        logger.info("AI tutor message sent", { userId: ctx.user.id, conversationId });
+
+        return {
+          message: replyContent,
+          conversationId,
+          usage,
+        };
+      } catch (err: any) {
+        logger.error("AI tutor error", { error: err.message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get AI response" });
       }
     }),
 
-  history: authedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    return db.select().from(aiConversations)
-      .where(eq(aiConversations.userId, ctx.user.id))
-      .orderBy(desc(aiConversations.updatedAt))
-      .limit(20);
-  }),
-});
+  getHistory: protectedProcedure
+    .input(GetHistorySchema)
+    .query(async ({ input, ctx }) => {
+      const db = getDb();
 
-async function createNewConversation(db: any, userId: number, discipline: string, message: string): Promise<number> {
-  const result = await db.insert(aiConversations).values({
-    userId,
-    discipline,
-    messages: [{ role: "user", content: message }],
-  });
-  return Number(result[0]?.insertId ?? 0) || 0;
-}
+      const rows = await db
+        .select()
+        .from(aiConversations)
+        .where(and(eq(aiConversations.id, input.conversationId), eq(aiConversations.userId, ctx.user.id)))
+        .orderBy(desc(aiConversations.createdAt))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      const messages = rows
+        .flatMap((r) => (r.messages as any[]) || [])
+        .reverse();
+
+      return {
+        messages,
+        total: messages.length,
+      };
+    }),
+
+  getConversations: protectedProcedure.query(async ({ ctx }) => {
+    const db = getDb();
+
+    const conversations = await db
+      .select({
+        id: aiConversations.id,
+        lastMessage: sql`JSON_EXTRACT(messages, '$[${sql.raw((db.select({ count: count() }).from(sql`json_table(messages, '$[*]' columns (rowid for ordinality)`)) as any).toString())}].content')`,
+        updatedAt: aiConversations.updatedAt,
+        messageCount: sql`JSON_LENGTH(messages)`,
+      })
+      .from(aiConversations)
+      .where(eq(aiConversations.userId, ctx.user.id))
+      .orderBy(desc(aiConversations.updatedAt));
+
+    return conversations;
+  }),
+
+  deleteConversation: protectedProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+
+      await db
+        .delete(aiConversations)
+        .where(and(eq(aiConversations.id, input.conversationId), eq(aiConversations.userId, ctx.user.id)));
+
+      logger.info("Conversation deleted", { userId: ctx.user.id, conversationId: input.conversationId });
+
+      return { success: true };
+    }),
+});

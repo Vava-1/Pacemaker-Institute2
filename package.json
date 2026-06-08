@@ -1,24 +1,45 @@
 {
-  "name": "my-app",
+  "name": "pacemaker-institute",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.1",
+  "description": "A modern full-stack e-learning platform",
+  "license": "MIT",
+  "author": "Pacemaker Institute <support@pacemaker.institute>",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vava-1/Pacemaker-Institute2.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Vava-1/Pacemaker-Institute2/issues"
+  },
+  "homepage": "https://github.com/Vava-1/Pacemaker-Institute2#readme",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build && esbuild api/boot.ts --platform=node --bundle --format=esm --outdir=dist --packages=external --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
-    "lint": "eslint .",
-    "preview": "vite preview",
     "start": "NODE_ENV=production node dist/boot.js",
     "prestart": "npm run db:push",
+    "lint": "eslint .",
     "check": "tsc -b",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "preview": "vite preview",
     "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "audit": "npm audit",
+    "audit:fix": "npm audit fix",
+    "security:scan": "npm audit --audit-level=high",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx db/seed.ts",
     "db:reset": "drizzle-kit push --force && tsx db/seed.ts",
-    "backup:db": "bash scripts/backup-db.sh"
+    "backup:db": "bash scripts/backup.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -52,6 +73,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@sentry/node": "^8.0.0",
     "@tanstack/react-query": "^5.90.16",
     "@trpc/client": "^11.8.1",
     "@trpc/react-query": "^11.8.1",
@@ -60,6 +82,7 @@
     "@types/multer": "^2.1.0",
     "@types/nodemailer": "^8.0.0",
     "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",

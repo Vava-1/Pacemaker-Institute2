@@ -3,36 +3,30 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  PORT: z.string().default("3000"),
-
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required (e.g. mysql://user:pass@host:3306/db)"),
-
-  JWT_ACCESS_SECRET: z.string().min(16, "JWT_ACCESS_SECRET must be at least 16 chars"),
-  JWT_REFRESH_SECRET: z.string().min(16, "JWT_REFRESH_SECRET must be at least 16 chars"),
-
+  PORT: z.string().regex(/^\d+$/).default("3000"),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+  JWT_REFRESH_SECRET: z.string().min(32, "JWT_REFRESH_SECRET must be at least 32 characters"),
   FRONTEND_URL: z.string().url().default("http://localhost:5173"),
-
-  STRIPE_SECRET_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
-
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_CALLBACK_URL: z.string().url().optional(),
-
-  ANTHROPIC_API_KEY: z.string().optional(),
-
-  CLOUDINARY_URL: z.string().optional(),
-
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.string().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
-  SMTP_FROM_NAME: z.string().optional(),
-  SMTP_FROM_EMAIL: z.string().email().optional(),
-
-  ERROR_WEBHOOK_URL: z.string().url().optional(),
+  STRIPE_SECRET_KEY: z.string().startsWith("sk_").optional().or(z.literal("")),
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional().or(z.literal("")),
+  STRIPE_PUBLISHABLE_KEY: z.string().startsWith("pk_").optional().or(z.literal("")),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional().or(z.literal("")),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional().or(z.literal("")),
+  GOOGLE_CALLBACK_URL: z.string().url().optional().or(z.literal("")),
+  ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
+  CLOUDINARY_URL: z.string().url().optional().or(z.literal("")),
+  SMTP_HOST: z.string().optional().or(z.literal("")),
+  SMTP_PORT: z.string().regex(/^\d+$/).optional().or(z.literal("")),
+  SMTP_USER: z.string().optional().or(z.literal("")),
+  SMTP_PASSWORD: z.string().optional().or(z.literal("")),
+  SMTP_FROM_NAME: z.string().optional().or(z.literal("Pacemaker Institute")),
+  SMTP_FROM_EMAIL: z.string().email().optional().or(z.literal("noreply@pacemakerinstitute.com")),
+  ERROR_WEBHOOK_URL: z.string().url().optional().or(z.literal("")),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  SENTRY_DSN: z.string().url().optional().or(z.literal("")),
+  RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).default("60000"),
+  RATE_LIMIT_MAX: z.string().regex(/^\d+$/).default("100"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -77,6 +71,8 @@ How to fix:
     JWT_REFRESH_SECRET: "dev_refresh_secret_do_not_use_in_prod_xxxxx",
     FRONTEND_URL: "http://localhost:5173",
     LOG_LEVEL: "info",
+    RATE_LIMIT_WINDOW_MS: "60000",
+    RATE_LIMIT_MAX: "100",
   } as Env;
 
   return (result.success ? result.data : fallback) as Env;
@@ -87,8 +83,6 @@ const parsed = parseAndValidate();
 const isProduction = parsed.NODE_ENV === "production";
 
 function derivePublicUrl(): string {
-  // Trust FRONTEND_URL env (Render injects hosturl via render.yaml fromService).
-  // Fall back to RENDER_EXTERNAL_HOSTNAME if FRONTEND_URL is missing in production.
   if (isProduction && !parsed.FRONTEND_URL && process.env.RENDER_EXTERNAL_HOSTNAME) {
     return `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
   }
@@ -105,33 +99,27 @@ export const env = {
   isProduction,
   nodeEnv: parsed.NODE_ENV,
   port: parsed.PORT,
-
   databaseUrl: parsed.DATABASE_URL,
-
   jwtAccessSecret: parsed.JWT_ACCESS_SECRET,
   jwtRefreshSecret: parsed.JWT_REFRESH_SECRET,
-
   frontendUrl: derivePublicUrl(),
-
   stripeSecretKey: parsed.STRIPE_SECRET_KEY ?? "",
   stripeWebhookSecret: parsed.STRIPE_WEBHOOK_SECRET ?? "",
   stripePublishableKey: parsed.STRIPE_PUBLISHABLE_KEY ?? "",
-
   googleClientId: parsed.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: parsed.GOOGLE_CLIENT_SECRET ?? "",
   googleCallbackUrl: deriveGoogleCallback(),
-
   anthropicApiKey: parsed.ANTHROPIC_API_KEY ?? "",
-
   cloudinaryUrl: parsed.CLOUDINARY_URL ?? "",
-
   smtpHost: parsed.SMTP_HOST ?? "",
   smtpPort: parsed.SMTP_PORT ?? "",
   smtpUser: parsed.SMTP_USER ?? "",
   smtpPassword: parsed.SMTP_PASSWORD ?? "",
   smtpFromName: parsed.SMTP_FROM_NAME ?? "Pacemaker Institute",
   smtpFromEmail: parsed.SMTP_FROM_EMAIL ?? "noreply@pacemakerinstitute.com",
-
   errorWebhookUrl: parsed.ERROR_WEBHOOK_URL ?? "",
   logLevel: parsed.LOG_LEVEL,
+  sentryDsn: parsed.SENTRY_DSN ?? "",
+  rateLimitWindowMs: parseInt(parsed.RATE_LIMIT_WINDOW_MS),
+  rateLimitMax: parseInt(parsed.RATE_LIMIT_MAX),
 };

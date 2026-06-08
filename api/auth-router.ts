@@ -1,203 +1,315 @@
 import { z } from "zod";
-import * as cookie from "cookie";
-import bcrypt from "bcrypt";
-import crypto from "crypto";
-import { eq, and, gt, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
-
-import { createRouter, publicQuery, authedQuery } from "./middleware";
+import { eq } from "drizzle-orm";
+import { createRouter, publicProcedure } from "./router";
 import { getDb } from "./queries/connection";
 import { users, passwordResets } from "@db/schema";
-import { env } from "./lib/env";
-import { signAccessToken, signRefreshToken } from "./lib/auth";
-import { sendVerificationEmail, sendPasswordResetEmail } from "./lib/mailer";
+import { logger } from "./lib/logger";
+import {
+  hashPassword,
+  verifyPassword,
+  createAccessToken,
+  createRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  verifyPasswordResetToken,
+  createPasswordResetToken,
+  validatePassword,
+} from "./lib/auth";
+import {
+  sendWelcomeEmail,
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "./lib/mailer";
 
-function setAuthCookies(resHeaders: Headers, access: string, refresh: string) {
-  const cookieOpts = {
-    httpOnly: true,
-    path: "/",
-    sameSite: "lax" as const,
-    secure: env.isProduction,
-  };
-  resHeaders.append(
-    "set-cookie",
-    cookie.serialize("access_token", access, { ...cookieOpts, maxAge: 15 * 60 }),
-  );
-  resHeaders.append(
-    "set-cookie",
-    cookie.serialize("refresh_token", refresh, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 }),
-  );
-}
+const RegisterSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["user", "instructor"]).default("user"),
+});
 
-function clearAuthCookies(resHeaders: Headers) {
-  const cookieOpts = {
-    httpOnly: true,
-    path: "/",
-    sameSite: "lax" as const,
-    secure: env.isProduction,
-  };
-  resHeaders.append("set-cookie", cookie.serialize("access_token", "", { ...cookieOpts, maxAge: 0 }));
-  resHeaders.append("set-cookie", cookie.serialize("refresh_token", "", { ...cookieOpts, maxAge: 0 }));
-}
+const LoginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const RefreshTokenSchema = z.object({
+  refreshToken: z.string().min(1, "Refresh token is required"),
+});
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "New password must be at least 8 characters"),
+});
 
 export const authRouter = createRouter({
-  me: authedQuery.query((opts) => opts.ctx.user),
-  
-  logout: authedQuery.mutation(async ({ ctx }) => {
-    clearAuthCookies(ctx.resHeaders);
-    return { success: true };
-  }),
-
-  register: publicQuery
-    .input(z.object({
-      name: z.string().min(2, "Name must be at least 2 characters"),
-      email: z.string().email("Invalid email address"),
-      password: z.string().min(8, "Password must be at least 8 characters").max(72),
-    }))
+  register: publicProcedure
+    .input(RegisterSchema)
     .mutation(async ({ input }) => {
       const db = getDb();
-      const existingUser = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
       
-      if (existingUser.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
+      // Validate password complexity
+      const passwordCheck = validatePassword(input.password);
+      if (!passwordCheck.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: passwordCheck.errors.join(". "),
+        });
       }
-
-      const passwordHash = await bcrypt.hash(input.password, 12);
-      const rawToken = crypto.randomBytes(32).toString("hex");
-      const emailVerifyToken = crypto.createHash("sha256").update(rawToken).digest("hex");
-
-      const [result] = await db.insert(users).values({
-        name: input.name,
-        email: input.email,
-        passwordHash,
-        emailVerified: false,
-        emailVerifyToken,
-        role: "user",
-      });
-
-      // Send the unhashed token to the user
-      await sendVerificationEmail(input.email, input.name, rawToken);
-
-      return { message: "Check your email to verify your account" };
+      
+      // Check existing email
+      const existingUser = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+      if (existingUser.length > 0) {
+        throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists" });
+      }
+      
+      try {
+        const passwordHash = await hashPassword(input.password);
+        const verificationToken = crypto.randomUUID();
+        
+        const [result] = await db.insert(users).values({
+          name: input.name,
+          email: input.email,
+          passwordHash,
+          role: input.role,
+          emailVerified: false,
+          emailVerifyToken: verificationToken,
+        });
+        
+        const userId = Number(result.insertId);
+        
+        // Send emails asynchronously (don't block registration)
+        sendWelcomeEmail(input.email, input.name).catch((err) =>
+          logger.error("Failed to send welcome email", { error: err, email: input.email })
+        );
+        sendVerificationEmail(input.email, input.name, verificationToken).catch((err) =>
+          logger.error("Failed to send verification email", { error: err, email: input.email })
+        );
+        
+        logger.info("User registered", { userId, email: input.email, role: input.role });
+        
+        return { success: true, userId, message: "Registration successful. Please check your email to verify your account." };
+      } catch (err: any) {
+        logger.error("Registration failed", { error: err.message, email: input.email });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Registration failed. Please try again." });
+      }
     }),
 
-  login: publicQuery
-    .input(z.object({
-      email: z.string().email("Invalid email address"),
-      password: z.string(),
-    }))
-    .mutation(async ({ input, ctx }) => {
+  login: publicProcedure
+    .input(LoginSchema)
+    .mutation(async ({ input }) => {
       const db = getDb();
+      
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
       const user = userRows[0];
-
+      
       if (!user || !user.passwordHash) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
-
+      
       if (user.isSuspended) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "This account has been suspended" });
+        logger.warn("Suspended user login attempt", { userId: user.id });
+        throw new TRPCError({ code: "FORBIDDEN", message: "This account has been suspended. Please contact support." });
       }
-
-      const isValid = await bcrypt.compare(input.password, user.passwordHash);
+      
+      const isValid = await verifyPassword(input.password, user.passwordHash);
       if (!isValid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
-
-      if (!user.emailVerified) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Please verify your email before logging in" });
-      }
-
-      // Record sign in time
+      
+      const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+      const accessToken = await createAccessToken(tokenPayload);
+      const refreshToken = await createRefreshToken(tokenPayload);
+      
       await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, user.id));
-
-      const accessToken = await signAccessToken({ userId: user.id, email: user.email, role: user.role });
-      const refreshToken = await signRefreshToken({ userId: user.id });
-
-      setAuthCookies(ctx.resHeaders, accessToken, refreshToken);
-
-      return { 
-        user: { 
-          id: user.id, 
-          name: user.name, 
-          email: user.email, 
-          role: user.role, 
-          avatar: user.avatar 
-        } 
+      
+      logger.info("User logged in", { userId: user.id });
+      
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+        },
+        accessToken,
+        refreshToken,
       };
     }),
 
-  forgotPassword: publicQuery
-    .input(z.object({ email: z.string().email() }))
+  refresh: publicProcedure
+    .input(RefreshTokenSchema)
+    .mutation(async ({ input }) => {
+      const payload = await verifyRefreshToken(input.refreshToken);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired refresh token" });
+      }
+      
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+      const user = userRows[0];
+      
+      if (!user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
+      }
+      
+      if (user.isSuspended) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
+      }
+      
+      const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+      const accessToken = await createAccessToken(tokenPayload);
+      const refreshToken = await createRefreshToken(tokenPayload);
+      
+      logger.info("Tokens refreshed", { userId: user.id });
+      
+      return {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+        },
+        accessToken,
+        refreshToken,
+      };
+    }),
+
+  forgotPassword: publicProcedure
+    .input(ForgotPasswordSchema)
     .mutation(async ({ input }) => {
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      const user = userRows[0];
-
-      if (user) {
-        const rawToken = crypto.randomBytes(32).toString("hex");
-        const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
+      
+      if (userRows.length > 0) {
+        const user = userRows[0];
+        const resetToken = await createPasswordResetToken(user.id, user.email);
+        
         await db.insert(passwordResets).values({
           userId: user.id,
-          tokenHash,
-          expiresAt,
+          tokenHash: resetToken,
+          expiresAt: new Date(Date.now() + 3600000),
         });
-
-        await sendPasswordResetEmail(user.email, rawToken);
+        
+        sendPasswordResetEmail(user.email, user.name, resetToken).catch((err) =>
+          logger.error("Failed to send password reset email", { error: err })
+        );
       }
-
-      // Always return success even if user not found (security)
-      return { message: "If an account exists, you will receive a password reset email" };
+      
+      // Always return same message to prevent email enumeration
+      return { message: "If an account with that email exists, a password reset link has been sent." };
     }),
 
-  resetPassword: publicQuery
-    .input(z.object({
-      token: z.string(),
-      newPassword: z.string().min(8).max(72),
-    }))
+  resetPassword: publicProcedure
+    .input(ResetPasswordSchema)
     .mutation(async ({ input }) => {
-      const db = getDb();
-      const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
-      
-      const resetRows = await db.select().from(passwordResets)
-        .where(
-          and(
-            eq(passwordResets.tokenHash, tokenHash),
-            isNull(passwordResets.usedAt),
-            gt(passwordResets.expiresAt, new Date())
-          )
-        ).limit(1);
-
-      const resetRequest = resetRows[0];
-      if (!resetRequest) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Reset link is invalid or expired" });
+      const passwordCheck = validatePassword(input.password);
+      if (!passwordCheck.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: passwordCheck.errors.join(". "),
+        });
       }
-
-      const passwordHash = await bcrypt.hash(input.newPassword, 12);
       
-      await db.update(users).set({ passwordHash }).where(eq(users.id, resetRequest.userId));
-      await db.update(passwordResets).set({ usedAt: new Date() }).where(eq(passwordResets.id, resetRequest.id));
-
-      return { message: "Password updated. Please log in." };
+      const tokenData = await verifyPasswordResetToken(input.token);
+      if (!tokenData) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired reset token" });
+      }
+      
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.id, tokenData.userId)).limit(1);
+      if (userRows.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      const passwordHash = await hashPassword(input.password);
+      await db.update(users).set({ passwordHash }).where(eq(users.id, tokenData.userId));
+      
+      logger.info("Password reset completed", { userId: tokenData.userId });
+      
+      return { message: "Password has been reset successfully. You can now log in with your new password." };
     }),
 
-  verifyEmail: publicQuery
+  changePassword: publicProcedure
+    .input(ChangePasswordSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be logged in" });
+      }
+      
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      const user = userRows[0];
+      
+      if (!user || !user.passwordHash) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      const isValid = await verifyPassword(input.currentPassword, user.passwordHash);
+      if (!isValid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Current password is incorrect" });
+      }
+      
+      const passwordCheck = validatePassword(input.newPassword);
+      if (!passwordCheck.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: passwordCheck.errors.join(". "),
+        });
+      }
+      
+      const newHash = await hashPassword(input.newPassword);
+      await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, ctx.user.id));
+      
+      logger.info("Password changed", { userId: ctx.user.id });
+      
+      return { message: "Password changed successfully" };
+    }),
+
+  verifyEmail: publicProcedure
     .input(z.object({ token: z.string() }))
     .mutation(async ({ input }) => {
       const db = getDb();
-      const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
+      const userRows = await db.select().from(users).where(eq(users.emailVerifyToken, input.token)).limit(1);
       
-      const userRows = await db.select().from(users).where(eq(users.emailVerifyToken, tokenHash)).limit(1);
-      const user = userRows[0];
-
-      if (!user) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired verification link" });
+      if (userRows.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired verification token" });
       }
-
-      await db.update(users).set({ emailVerified: true, emailVerifyToken: null }).where(eq(users.id, user.id));
-
-      return { message: "Email verified. You can now log in." };
+      
+      await db.update(users).set({
+        emailVerified: true,
+        emailVerifyToken: null,
+      }).where(eq(users.id, userRows[0].id));
+      
+      logger.info("Email verified", { userId: userRows[0].id });
+      
+      return { message: "Email verified successfully" };
     }),
+
+  me: publicProcedure.query(async ({ ctx }) => {
+    if (!ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
+    }
+    
+    const db = getDb();
+    const userRows = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+    
+    if (userRows.length === 0) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    }
+    
+    return userRows[0];
+  }),
 });

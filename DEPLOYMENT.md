@@ -1,421 +1,342 @@
 # Pacemaker Institute - Deployment Guide
 
-> **For non-technical owners:** This guide walks you through deploying the platform step-by-step. Follow the steps in order. Estimated total time: **15-20 minutes** for the first deploy.
+**Version:** 1.0.1
+**Target Environments:** Render (recommended), cPanel/BlueHost, VPS (Ubuntu)
 
----
+## Prerequisites
 
-## Table of Contents
+### Required Accounts
 
-1. [Before You Start](#1-before-you-start)
-2. [Option A - Render.com (Recommended)](#2-option-a--rendercom-recommended)
-3. [Option B - cPanel / BlueHost](#3-option-b--cpanel--bluehost)
-4. [Post-Deploy Setup](#4-post-deploy-setup)
-5. [Custom Domain Configuration](#5-custom-domain-configuration)
-6. [Switching to Live Payments](#6-switching-to-live-payments)
-7. [Connecting Google OAuth](#7-connecting-google-oauth)
-8. [Configuring SMTP Email](#8-configuring-smtp-email)
-9. [Database Backups](#9-database-backups)
-10. [Troubleshooting](#10-troubleshooting)
+- [GitHub](https://github.com) account (source control)
+- [Render](https://render.com) account (hosting, or use alternatives)
+- [Stripe](https://stripe.com) account (payments)
+- [Anthropic](https://console.anthropic.com) account (AI tutor)
+- [Cloudinary](https://cloudinary.com) account (media storage)
+- [Google Cloud Console](https://console.cloud.google.com) (OAuth)
+- [Sentry](https://sentry.io) account (error monitoring, optional)
 
----
+### Required Tools
 
-## 1. Before You Start
+- Git
+- Node.js 20+
+- MySQL 8+ client (for database management)
+- npm 10+
 
-You will need:
+## Render.com Deployment
 
-- A **GitHub** account (free) - https://github.com
-- A **Render.com** account (free tier works) - https://render.com
-- A **MySQL database** (free options below)
-  - Render offers a free MySQL database (90 days, then $7/mo)
-  - OR PlanetScale (free tier), OR a hosted MySQL from your provider
-- A **Stripe** account (free, test mode works) - https://stripe.com
-- (Optional) A **Google Cloud** project for OAuth login
-- (Optional) An **SMTP** provider (SendGrid, Mailgun, Resend, etc.) for emails
+### Step 1: Create MySQL Database
 
-> [!TIP]
-> If you only want to test the platform, you can skip Stripe, Google, and SMTP. The app works without them - it just disables the related features.
+1. Log in to [Render Dashboard](https://dashboard.render.com)
+2. Click **New > PostgreSQL** (Note: Render doesn't offer MySQL, use an external MySQL provider or Render's PostgreSQL with a compatibility layer)
+3. Alternative: Use [Aiven](https://aiven.io/mysql), [PlanetScale](https://planetscale.com), or [JawsDB](https://jawsdb.com) for MySQL
 
-### Where to get each value
-
-| Variable | Where to get it |
-|---|---|
-| `DATABASE_URL` | From your MySQL host's "Connection string" (looks like `mysql://user:pass@host:3306/dbname`) |
-| `JWT_ACCESS_SECRET` | Generate one yourself (see below) |
-| `JWT_REFRESH_SECRET` | Generate one yourself (see below) |
-| `STRIPE_SECRET_KEY` | Stripe Dashboard -> Developers -> API keys -> Secret key |
-| `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard -> Developers -> Webhooks -> Add endpoint -> Reveal signing secret |
-| `STRIPE_PUBLISHABLE_KEY` | Stripe Dashboard -> Developers -> API keys -> Publishable key |
-| `GOOGLE_CLIENT_ID` | Google Cloud Console -> APIs & Services -> Credentials -> Create OAuth Client |
-| `GOOGLE_CLIENT_SECRET` | Same as above |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com -> Settings -> API Keys |
-| `CLOUDINARY_URL` | Cloudinary Dashboard -> Account Details -> API Environment variable |
-| `SMTP_HOST` | Your email provider (e.g. `smtp.sendgrid.net`) |
-| `SMTP_PORT` | Usually `587` |
-| `SMTP_USER` | SMTP username |
-| `SMTP_PASSWORD` | SMTP password / API key |
-| `SMTP_FROM_EMAIL` | The email address you want to send from |
-
-### Generate JWT secrets
-
-Open PowerShell / Terminal and run **twice** (once for each secret):
+### Step 2: Fork the Repository
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Fork on GitHub, then clone your fork
+git clone https://github.com/YOUR_USERNAME/Pacemaker-Institute2.git
+cd Pacemaker-Institute2
 ```
 
-Copy each result into the corresponding env var.
-
----
-
-## 2. Option A - Render.com (Recommended)
-
-Render is the easiest way to deploy. It detects our `render.yaml` file and configures everything for you.
-
-### 2.1 - Push the code to GitHub
-
-1. Create a **private** repository on https://github.com/new
-2. Push this project to it (or click "Upload files" in the GitHub UI and drag the whole folder):
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/pacemaker.git
-   git push -u origin main
-   ```
-
-### 2.2 - Create a MySQL database
-
-1. Go to https://dashboard.render.com
-2. Click **New +** -> **PostgreSQL** or **MySQL**.
-   - Render no longer offers a free MySQL. Two options:
-     - **Option 1 (paid):** Click **New +** -> **MySQL** (~$7/mo, recommended)
-     - **Option 2 (free):** Sign up at https://planetscale.com and create a free database, then copy the connection string.
-3. Copy the **Internal Connection String** or **External Connection String**. It will look like:
-   ```
-   mysql://user:password@host:3306/database
-   ```
-
-### 2.3 - Create the Web Service
-
-1. In Render Dashboard, click **New +** -> **Blueprint**.
-2. Connect your GitHub repository.
-3. Render will detect `render.yaml` and show you the service it will create. Click **Apply**.
-4. Wait for the first deploy to complete (5-10 min).
-5. Go to your service's **Environment** tab.
-6. Fill in the variables marked `sync: false` (i.e. not auto-generated):
-   - `DATABASE_URL` - paste from step 2.2
-   - `STRIPE_SECRET_KEY` - paste from Stripe
-   - ...etc. See the table above.
-
-> [!NOTE]
-> Variables marked `generateValue: true` in `render.yaml` (like `JWT_ACCESS_SECRET`) are auto-generated by Render. You do not need to set them.
->
-> `FRONTEND_URL` and `GOOGLE_CALLBACK_URL` are also auto-resolved to your service's hostname (e.g. `https://pacemaker-institute.onrender.com`).
-
-### 2.4 - Wait for the deploy
-
-After saving environment variables, Render will redeploy automatically. This usually takes 2-5 minutes. Watch the **Logs** tab for any errors.
-
-### 2.5 - Seed the database
-
-You need to seed it once with the initial data (admin user, sample courses, etc.):
-
-1. Go to your service's **Shell** tab in Render.
-2. Run:
-   ```bash
-   npm run db:seed
-   ```
-3. You should see:
-   ```
-   Seeding complete!
-   Login credentials:
-     Admin:      admin@pacemaker.institute      / Admin@2024!
-     ...
-   ```
-
-### 2.6 - Visit your site!
-
-Click the URL at the top of your service (e.g. `https://pacemaker-institute.onrender.com`).
-
-Log in with:
-- **Email:** `admin@pacemaker.institute`
-- **Password:** `Admin@2024!`
-
-> [!WARNING]
-> **Change the admin password immediately** after first login (Profile -> Change password).
-
----
-
-## 3. Option B - cPanel / BlueHost
-
-Use this if you have a traditional web host.
-
-### 3.1 - Create a MySQL database
-
-1. Log in to cPanel.
-2. Open **MySQL Databases**.
-3. Create a new database (e.g. `pacemaker`).
-4. Create a new database user with a strong password.
-5. Add the user to the database with **All Privileges**.
-
-### 3.2 - Upload the code
-
-1. Zip the entire project folder (NOT the `node_modules` folder).
-2. In cPanel File Manager, go to your app directory (e.g. `public_html/pacemaker` or `apps/pacemaker`).
-3. Upload the zip and extract it.
-
-### 3.3 - Configure environment
-
-1. Copy `.env.example` to `.env` (in File Manager: right-click -> Copy, then rename).
-2. Edit `.env` and fill in:
-   - `DATABASE_URL` - use `mysql://youruser:yourpass@127.0.0.1:3306/yourdb`
-   - `FRONTEND_URL` - use your real domain (`https://yourdomain.com`)
-   - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` - generate two random 32+ char strings
-
-### 3.4 - Set up Node.js
-
-1. In cPanel, open **Setup Node.js App**.
-2. Click **Create Application**:
-   - **Node.js version:** 20 or 22
-   - **Application mode:** Production
-   - **Application root:** the folder you uploaded to
-   - **Application URL:** your domain
-   - **Application startup file:** `dist/boot.js`
-3. Click **Run NPM Install** (or run `npm install` from the terminal).
-4. Click **Run JS Script** and run: `npm run build`
-5. Click **Restart** to start the app.
-
-### 3.5 - Database migrations and seed
-
-In cPanel -> **Terminal** (or SSH), run:
-```bash
-cd ~/apps/pacemaker
-npm run db:push
-npm run db:seed
-```
-
----
-
-## 4. Post-Deploy Setup
-
-### 4.1 - First login
-
-Log in with the seeded admin account and **change the password** immediately.
-
-### 4.2 - Add your first real course
-
-1. Go to your dashboard, click **Create New Course**.
-2. Fill in the title, description, price (use `0.00` for free).
-3. Add lessons: video URL or text content.
-4. Click **Publish**.
-
-### 4.3 - Configure Stripe
-
-See [Section 6](#6-switching-to-live-payments) below.
-
----
-
-## 5. Custom Domain Configuration
-
-### On Render
-
-1. Buy your domain (Namecheap, Cloudflare, Google Domains, etc.).
-2. In Render Dashboard -> your service -> **Settings** -> **Custom Domains** -> **Add Custom Domain**.
-3. Enter your domain (e.g. `learn.yourdomain.com`).
-4. Render shows you a CNAME record. Add it to your DNS provider.
-5. Wait for DNS to propagate (5-60 minutes). Render auto-issues a free SSL certificate.
-6. Done! `FRONTEND_URL` is auto-updated.
-
-> [!NOTE]
-> The OAuth callback URL (`GOOGLE_CALLBACK_URL`) is also auto-derived, so Google OAuth keeps working.
-
-### OAuth redirect URL with custom domain
-
-If you use Google OAuth, update the Authorized redirect URI in Google Cloud Console:
-```
-https://your-custom-domain.com/api/oauth/google/callback
-```
-
-### Stripe webhook with custom domain
-
-Update the webhook endpoint in Stripe Dashboard:
-```
-https://your-custom-domain.com/api/webhooks/stripe
-```
-
----
-
-## 6. Switching to Live Payments
-
-> [!CAUTION]
-> Always test with Stripe **test mode** first. Once you go live, real money is involved.
-
-### 6.1 - Test mode (start here)
-
-1. In Stripe Dashboard, make sure the toggle at the top says **Test mode**.
-2. Copy the **Test mode** secret key and webhook secret.
-3. Use Stripe's test card numbers:
-   - **Success:** `4242 4242 4242 4242` (any future expiry, any CVC)
-   - **Decline:** `4000 0000 0000 0002`
-4. Make a test purchase on your platform. Verify the user gets enrolled.
-
-### 6.2 - Go live
-
-1. Complete Stripe's business verification (Settings -> Account).
-2. Toggle to **Live mode** in Stripe Dashboard.
-3. Copy the **Live** secret key (`sk_live_...`).
-4. Create a new webhook endpoint in **Live mode**:
-   - URL: `https://your-domain.com/api/webhooks/stripe`
-   - Events: `checkout.session.completed`
-5. Copy the new webhook signing secret.
-6. In your hosting dashboard, update `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to the live values.
-7. Trigger a redeploy.
-
----
-
-## 7. Connecting Google OAuth
-
-1. Go to https://console.cloud.google.com
-2. Create a new project.
-3. **APIs & Services** -> **OAuth consent screen** -> fill in app name, support email, scopes (`email`, `profile`).
-4. **Credentials** -> **Create Credentials** -> **OAuth client ID** -> **Web application**.
-5. Authorized JavaScript origins:
-   - `https://your-domain.com`
-   - `http://localhost:5173` (for local dev)
-6. Authorized redirect URIs:
-   - `https://your-domain.com/api/oauth/google/callback`
-7. Copy **Client ID** and **Client Secret**.
-8. Set them as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in your hosting dashboard.
-9. Redeploy.
-
----
-
-## 8. Configuring SMTP Email
-
-### Option A - SendGrid (free tier: 100 emails/day)
-
-1. Sign up at https://sendgrid.com
-2. **Settings** -> **API Keys** -> **Create API Key** -> "Mail Send" permissions.
-3. Copy the key.
-4. Verify a **Single Sender** (or domain) at **Settings** -> **Sender Authentication**.
-5. Set in env:
-   ```
-   SMTP_HOST=smtp.sendgrid.net
-   SMTP_PORT=587
-   SMTP_USER=apikey
-   SMTP_PASSWORD=SG.xxxxxxxxxxxxxxxxxxxx
-   SMTP_FROM_EMAIL=noreply@yourdomain.com
-   ```
-
-### Option B - Resend (free tier: 3000/month)
-
-```
-SMTP_HOST=smtp.resend.com
-SMTP_PORT=465
-SMTP_USER=resend
-SMTP_PASSWORD=re_xxxxxxxxxxxxxxxxxxxx
-SMTP_FROM_EMAIL=noreply@yourdomain.com
-```
-
-### Option C - Mailgun
-
-```
-SMTP_HOST=smtp.mailgun.org
-SMTP_PORT=587
-SMTP_USER=postmaster@mg.yourdomain.com
-SMTP_PASSWORD=your-mailgun-password
-```
-
----
-
-## 9. Database Backups
-
-### Manual backup
-
-Render Dashboard -> your database -> **Backups** -> **Create Backup**.
-
-### Automated backups
-
-Schedule a daily backup with the included scripts:
-
-**Linux/Mac:**
-```bash
-chmod +x scripts/backup-db.sh
-# Add to crontab:
-0 2 * * * cd /path/to/app && BACKUP_TARGET=s3 ./scripts/backup-db.sh
-```
-
-**Windows (Task Scheduler):**
-```powershell
-# Create a task that runs daily at 2am:
-$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-File C:\path\to\app\scripts\backup-db.ps1 -Target s3'
-$trigger = New-ScheduledTaskTrigger -Daily -At 2am
-Register-ScheduledTask -TaskName 'Pacemaker DB Backup' -Action $action -Trigger $trigger
-```
-
-To upload to S3, set these env vars:
-- `AWS_S3_BUCKET` - your bucket name
-- `AWS_REGION` - e.g. `us-east-1`
-- (configure AWS credentials via `aws configure` or IAM role)
-
-### Restore a backup
+### Step 3: Configure Environment Variables
+
+In the Render Dashboard, add these environment variables:
+
+| Variable | Source |
+|----------|--------|
+| `DATABASE_URL` | MySQL connection string |
+| `JWT_ACCESS_SECRET` | Generate with `openssl rand -hex 32` |
+| `JWT_REFRESH_SECRET` | Generate with `openssl rand -hex 32` |
+| `FRONTEND_URL` | Auto-populated by Render |
+| `STRIPE_SECRET_KEY` | Stripe Dashboard |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Dashboard |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe Dashboard |
+| `ANTHROPIC_API_KEY` | Anthropic Console |
+| `CLOUDINARY_URL` | Cloudinary Dashboard |
+| `SMTP_*` | Your email provider |
+
+### Step 4: Create Web Service
+
+1. In Render Dashboard, click **New > Web Service**
+2. Connect your GitHub repository
+3. Use the `render.yaml` blueprint or configure manually:
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm start`
+   - **Health Check Path:** `/api/health`
+
+### Step 5: Configure Stripe Webhooks
+
+1. Go to Stripe Dashboard > Developers > Webhooks
+2. Add endpoint: `https://your-app.onrender.com/api/webhooks/stripe`
+3. Listen for events:
+   - `checkout.session.completed`
+   - `invoice.payment_succeeded`
+   - `invoice.payment_failed`
+   - `customer.subscription.deleted`
+   - `charge.refunded`
+4. Copy the webhook signing secret to `STRIPE_WEBHOOK_SECRET`
+
+### Step 6: Configure Google OAuth
+
+1. Go to Google Cloud Console > APIs & Services > Credentials
+2. Create OAuth 2.0 Client ID
+3. Add authorized redirect URI: `https://your-app.onrender.com/api/oauth/google/callback`
+
+### Step 7: Deploy
+
+Push to the `main` branch to trigger automatic deployment:
 
 ```bash
-gunzip -c backups/pacemaker-20260607-020000.sql.gz | mysql -u root -p pacemaker
+git push origin main
 ```
 
----
+### Auto-Deploy Configuration
 
-## 10. Troubleshooting
+Render auto-deploys on every push to the `main` branch. To disable:
 
-### "Application failed to respond" / blank page
+1. Go to your Web Service > Settings
+2. Scroll to **Deploy** section
+3. Change **Auto-Deploy** to **No**
 
-- Check the **Logs** tab in Render.
-- Look for `Error: connect ECONNREFUSED` -> `DATABASE_URL` is wrong.
-- Look for `Missing required environment variable: ...` -> fill it in.
+### Scaling
 
-### "Email not verified" when logging in
+Configure auto-scaling in `render.yaml` or Render Dashboard:
 
-The seeded admin already has `emailVerified = true`. If you create new users via the UI, they must click the link in the verification email first. To disable email verification in dev, edit the registration mutation.
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 3
+  targetCPUPercent: 70
+  targetMemoryPercent: 80
+```
 
-### Stripe webhook not working
+## cPanel/BlueHost Deployment
 
-1. In Stripe Dashboard -> Webhooks, check the webhook is sending events.
-2. The endpoint URL must be `https://your-domain.com/api/webhooks/stripe`.
-3. The signing secret in your env must match the live signing secret.
+### Step 1: Prepare Files
 
-### "Cookie consent" doesn't go away
-
-Clear `localStorage` for your site (DevTools -> Application -> Local Storage -> right-click -> Clear).
-
-### Build fails with "Cannot find module"
-
-Run locally:
 ```bash
-rm -rf node_modules package-lock.json
 npm install
 npm run build
 ```
-If it succeeds locally, the issue is your hosting env. Make sure `NODE_ENV` is set correctly.
 
-### Forgot admin password
+### Step 2: Upload to Server
 
-If you have database access, run:
-```sql
-UPDATE users SET email_verified = 1 WHERE email = 'admin@pacemaker.institute';
+Upload the following via FTP/SFTP:
+
+- `dist/` (compiled frontend and backend)
+- `node_modules/`
+- `package.json`
+- `api/` (backend source if running in dev mode)
+
+### Step 3: Configure MySQL Database
+
+1. Create a MySQL database in cPanel
+2. Create a database user and assign privileges
+3. Note the connection string
+
+### Step 4: Configure Environment Variables
+
+Create `.env` in the root directory:
+
 ```
-And use the "Forgot password" flow. If that fails (no SMTP), you can manually reset:
-```sql
--- Generate a bcrypt hash for "NewPassword123" using:
--- node -e "console.log(require('bcrypt').hashSync('NewPassword123', 12))"
-UPDATE users SET password_hash = '<paste-hash-here>' WHERE email = 'admin@pacemaker.institute';
+NODE_ENV=production
+DATABASE_URL=mysql://user:password@localhost:3306/pacemaker
+JWT_ACCESS_SECRET=<random_32_chars>
+JWT_REFRESH_SECRET=<random_32_chars>
+FRONTEND_URL=https://yourdomain.com
 ```
 
----
+### Step 5: Install Dependencies and Run Migrations
 
-## Need help?
+```bash
+npm install --production
+npm run db:migrate
+npm run db:seed
+```
 
-- Read `OWNER_GUIDE.md` for day-to-day operations.
-- Read `README.md` for developer-facing documentation.
-- Open an issue on GitHub.
+### Step 6: Configure Node.js App (cPanel)
+
+1. Go to **Setup Node.js App** in cPanel
+2. Create a new application:
+   - **Application root:** `/path/to/app`
+   - **Application URL:** `yourdomain.com`
+   - **Application startup file:** `dist/boot.js`
+   - **Pass environment variables:** Paste from `.env`
+
+### Step 7: Configure Web Server
+
+Create `.htaccess` for Apache:
+
+```apache
+RewriteEngine On
+
+# Serve static files
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^(.*)$ index.html [QSA,L]
+
+# Proxy API requests to Node.js
+RewriteCond %{REQUEST_URI} ^/api/
+RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+```
+
+### Step 8: SSL Certificate
+
+Enable SSL via cPanel's SSL/TLS manager or Let's Encrypt.
+
+## VPS Deployment (Ubuntu 22.04)
+
+### Server Requirements
+
+- Ubuntu 22.04 LTS
+- 2+ CPU cores
+- 4GB+ RAM
+- 20GB+ storage
+- Root or sudo access
+
+### Installation
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install MySQL 8
+sudo apt install -y mysql-server
+sudo mysql_secure_installation
+
+# Install PM2
+sudo npm install -g pm2
+
+# Install Nginx
+sudo apt install -y nginx
+
+# Install Certbot (SSL)
+sudo apt install -y certbot python3-certbot-nginx
+
+# Clone and setup application
+git clone https://github.com/YOUR_USERNAME/Pacemaker-Institute2.git /var/www/pacemaker
+cd /var/www/pacemaker
+npm install
+cp .env.example .env
+# Edit .env with production values
+npm run db:migrate
+npm run db:seed
+
+# Start with PM2
+pm2 start dist/boot.js --name pacemaker-institute
+pm2 save
+pm2 startup
+```
+
+### Nginx Configuration
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    # API proxy
+    location /api/ {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+    }
+
+    # Static files
+    location / {
+        root /var/www/pacemaker/dist;
+        try_files $uri $uri/ /index.html;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+### SSL with Certbot
+
+```bash
+sudo certbot --nginx -d yourdomain.com
+```
+
+## Post-Deployment Checklist
+
+### Immediate (First 24 Hours)
+
+- [ ] Verify health check: `GET /api/health`
+- [ ] Test user registration and login
+- [ ] Verify email delivery (check spam folder)
+- [ ] Test Stripe payment flow in test mode
+- [ ] Verify AI tutor responses
+- [ ] Test file upload functionality
+- [ ] Verify SSL certificate is valid
+
+### Short-term (First Week)
+
+- [ ] Monitor error logs for issues
+- [ ] Set up uptime monitoring (Pingdom, UptimeRobot)
+- [ ] Configure database backup schedule
+- [ ] Test backup restoration
+- [ ] Verify CDN delivery for static assets
+- [ ] Test payment flow in production mode
+- [ ] Review rate limiting effectiveness
+
+### Ongoing
+
+- [ ] Weekly dependency updates (npm audit)
+- [ ] Monthly security review
+- [ ] Quarterly performance audit
+- [ ] Regular database maintenance (optimize, analyze)
+
+## Troubleshooting
+
+### Build Failures
+
+1. Clear npm cache: `npm cache clean --force`
+2. Delete `node_modules` and reinstall: `rm -rf node_modules && npm install`
+3. Check Node.js version: `node --version` (must be 20+)
+
+### Database Issues
+
+1. Verify connection string format
+2. Check database accessibility from server
+3. Ensure migrations have been run
+
+### Stripe Webhooks
+
+1. Verify webhook signing secret
+2. Check webhook endpoint is publicly accessible
+3. Review Stripe webhook logs for failures
+
+### Memory Issues
+
+```
+# Increase Node.js memory limit
+NODE_OPTIONS="--max-old-space-size=4096" npm start
+```
+
+### Performance Issues
+
+1. Enable database query caching
+2. Configure CDN for static assets
+3. Optimize database queries with indexes
+4. Scale horizontally with multiple instances

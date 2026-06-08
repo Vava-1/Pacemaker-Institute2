@@ -1,24 +1,32 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo",
     "target": "ES2022",
-    "lib": ["ES2022"],
     "module": "ESNext",
-    "types": ["node"],
-    "skipLibCheck": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "strict": true,
+    "outDir": "./dist/api",
+    "rootDir": "./api",
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["./src/*"],
-      "@contracts/*": ["./contracts/*"],
-      "@db/*": ["./db/*"]
-    }
+    "skipLibCheck": true
   },
-  "include": ["api", "contracts", "db"]
+  "include": ["api/**/*.ts", "db/**/*.ts", "contracts/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -3,11 +3,15 @@ import { env } from "./env";
 import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { signAccessToken, signRefreshToken } from "./auth";
-import * as cookie from "cookie";
+import { createAccessToken, createRefreshToken } from "./auth";
+import { hashPassword } from "./auth";
 import type { Context } from "hono";
+import { logger } from "./logger";
 
-// We'll lazy load this to avoid issues if env vars are missing
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+
 let googleClient: OAuth2Client | null = null;
 
 function getClient() {
@@ -22,74 +26,86 @@ function getClient() {
 }
 
 export function createGoogleAuthUrl() {
-  const client = getClient();
-  if (!client) {
+  if (!env.googleClientId) {
     throw new Error("Google OAuth is not configured");
   }
-  return client.generateAuthUrl({
+
+  const state = crypto.randomUUID();
+
+  const params = new URLSearchParams({
+    client_id: env.googleClientId,
+    redirect_uri: env.googleCallbackUrl,
+    response_type: "code",
+    scope: "openid email profile",
     access_type: "offline",
-    scope: ["email", "profile"],
     prompt: "consent",
+    state,
   });
+
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
 
 export async function handleGoogleCallback(c: Context) {
-  const client = getClient();
-  if (!client) {
-    return c.json({ error: "Google OAuth is not configured" }, 500);
+  const code = c.req.query("code");
+  const error = c.req.query("error");
+
+  if (error) {
+    logger.warn("Google OAuth error", { error });
+    return c.redirect(`${env.frontendUrl}/login?error=auth_failed`);
   }
 
-  const code = c.req.query("code");
   if (!code) {
-    return c.json({ error: "No code provided" }, 400);
+    return c.redirect(`${env.frontendUrl}/login?error=no_code`);
+  }
+
+  if (!env.googleClientId || !env.googleClientSecret) {
+    return c.redirect(`${env.frontendUrl}/login?error=not_configured`);
   }
 
   try {
+    const client = getClient();
+    if (!client) {
+      return c.redirect(`${env.frontendUrl}/login?error=not_configured`);
+    }
+
     const { tokens } = await client.getToken(code);
     client.setCredentials(tokens);
 
-    // Get user info
-    const response = await client.request({
-      url: "https://www.googleapis.com/oauth2/v2/userinfo",
-    });
-    
+    const response = await client.request({ url: GOOGLE_USERINFO_URL });
     const data = response.data as any;
-    const email = data.email;
-    const name = data.name;
-    const picture = data.picture;
-    const googleId = data.id;
+    const email = data.email as string;
+    const name = data.name as string;
+    const picture = data.picture as string;
+    const googleId = data.id as string;
 
     if (!email) {
-      return c.json({ error: "Could not get email from Google" }, 400);
+      return c.redirect(`${env.frontendUrl}/login?error=no_email`);
     }
 
     const db = getDb();
-    
-    // Check if user exists
     let userRows = await db.select().from(users).where(eq(users.email, email)).limit(1);
     let user = userRows[0];
 
     if (user) {
-      // Update google ID and avatar if needed
       await db.update(users).set({
         googleId,
         avatar: user.avatar || picture,
-        emailVerified: true, // Google verifies emails
+        emailVerified: true,
         lastSignInAt: new Date(),
       }).where(eq(users.id, user.id));
     } else {
-      // Create new user
-      const [insertResult] = await db.insert(users).values({
+      const [result] = await db.insert(users).values({
         email,
         name,
         avatar: picture,
         googleId,
+        passwordHash: await hashPassword(crypto.randomUUID()),
         emailVerified: true,
         role: "user",
         lastSignInAt: new Date(),
       });
-      
-      const newUsers = await db.select().from(users).where(eq(users.id, insertResult.insertId)).limit(1);
+
+      const newUsers = await db.select().from(users).where(eq(users.id, result.insertId)).limit(1);
       user = newUsers[0];
     }
 
@@ -97,23 +113,15 @@ export async function handleGoogleCallback(c: Context) {
       return c.redirect(`${env.frontendUrl}/login?error=account_suspended`);
     }
 
-    // Sign tokens
-    const accessToken = await signAccessToken({ userId: user.id, email: user.email, role: user.role });
-    const refreshToken = await signRefreshToken({ userId: user.id });
+    const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+    const accessToken = await createAccessToken(tokenPayload);
+    const refreshToken = await createRefreshToken(tokenPayload);
 
-    const cookieOpts = {
-      httpOnly: true,
-      path: "/",
-      sameSite: "lax" as const,
-      secure: env.isProduction,
-    };
-
-    c.header("set-cookie", cookie.serialize("access_token", accessToken, { ...cookieOpts, maxAge: 15 * 60 }), { append: true });
-    c.header("set-cookie", cookie.serialize("refresh_token", refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 }), { append: true });
-
-    return c.redirect(`${env.frontendUrl}/dashboard`);
-  } catch (error) {
-    console.error("Google OAuth Error:", error);
+    return c.redirect(
+      `${env.frontendUrl}/oauth/callback?access_token=${accessToken}&refresh_token=${refreshToken}`
+    );
+  } catch (err: any) {
+    logger.error("Google OAuth callback error", { error: err.message });
     return c.redirect(`${env.frontendUrl}/login?error=auth_failed`);
   }
 }

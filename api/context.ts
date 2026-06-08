@@ -1,24 +1,68 @@
 import type { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import type { User } from "@db/schema";
-import { authenticateRequest } from "./lib/auth";
+import { getDb } from "./queries/connection";
+import { verifyAccessToken } from "./lib/auth";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
 
-export type TrpcContext = {
-  req: Request;
-  resHeaders: Headers;
-  user?: User;
-};
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: "user" | "instructor" | "admin";
+  avatar: string | null;
+  isSuspended: boolean;
+}
+
+export interface Context {
+  user: User | null;
+  db: ReturnType<typeof getDb>;
+  requestId: string;
+}
 
 export async function createContext(
-  opts: FetchCreateContextFnOptions,
-): Promise<TrpcContext> {
-  const ctx: TrpcContext = { req: opts.req, resHeaders: opts.resHeaders };
+  opts: FetchCreateContextFnOptions & { req: Request }
+): Promise<Context> {
+  const requestId = opts.req.headers.get("X-Request-ID") || crypto.randomUUID();
+  const db = getDb();
+  
   try {
-    const user = await authenticateRequest(opts.req, opts.resHeaders);
-    if (user) {
-      ctx.user = user;
+    const authHeader = opts.req.headers.get("Authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : undefined;
+
+    if (!token) {
+      return { user: null, db, requestId };
     }
+
+    const payload = await verifyAccessToken(token);
+    if (!payload) {
+      return { user: null, db, requestId };
+    }
+
+    const userRows = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        role: users.role,
+        avatar: users.avatar,
+        isSuspended: users.isSuspended,
+      })
+      .from(users)
+      .where(eq(users.id, payload.sub))
+      .limit(1);
+
+    if (userRows.length === 0) {
+      return { user: null, db, requestId };
+    }
+
+    return {
+      user: userRows[0] as User,
+      db,
+      requestId,
+    };
   } catch {
-    // Authentication is optional here
+    return { user: null, db, requestId };
   }
-  return ctx;
 }

@@ -1,22 +1,28 @@
 services:
   - type: web
     name: pacemaker-institute
-    env: node
+    runtime: node
+    region: oregon
     plan: starter
     buildCommand: npm install && npm run build
     startCommand: npm start
-    autoDeploy: true
+    healthCheckPath: /api/health
+    readinessCheckPath: /api/ready
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: "3000"
       - key: DATABASE_URL
-        sync: false # Set in Render Dashboard (MySQL connection string)
+        fromDatabase:
+          name: pacemaker-db
+          property: connectionString
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        fromService: # Auto-resolves to https://<service>.onrender.com
+        fromService:
           type: web
           name: pacemaker-institute
           property: hosturl
@@ -30,7 +36,6 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      # GOOGLE_CALLBACK_URL is auto-derived at runtime: ${FRONTEND_URL}/api/oauth/google/callback
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: CLOUDINARY_URL
@@ -51,3 +56,34 @@ services:
         sync: false
       - key: LOG_LEVEL
         value: info
+      - key: SENTRY_DSN
+        sync: false
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX
+        value: "100"
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+    autoDeploy: true
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetCPUPercent: 70
+      targetMemoryPercent: 80
+
+  - type: worker
+    name: pacemaker-email-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm run worker:email
+    autoDeploy: true
+
+databases:
+  - name: pacemaker-db
+    plan: starter
+    databaseName: pacemaker
+    user: pacemaker
+    ipAllowList: []

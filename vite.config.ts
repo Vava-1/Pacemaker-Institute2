@@ -1,29 +1,61 @@
-import devServer from "@hono/vite-dev-server"
-import path from "path"
-const __dirname = import.meta.dirname
-import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
-import { inspectAttr } from 'kimi-plugin-inspect-react'
+import devServer from "@hono/vite-dev-server";
+import path from "path";
+const __dirname = import.meta.dirname;
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+import { inspectAttr } from "kimi-plugin-inspect-react";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
-    inspectAttr(), react()],
-  server: {
-    port: 3000,
-  },
+    inspectAttr(),
+    react(),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@contracts": path.resolve(__dirname, "./contracts"),
+      "@api": path.resolve(__dirname, "./api"),
       "@db": path.resolve(__dirname, "./db"),
-      "db": path.resolve(__dirname, "./db"),
+      "@contracts": path.resolve(__dirname, "./contracts"),
+    },
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
     },
   },
   envDir: path.resolve(__dirname),
+  envPrefix: "VITE_",
   build: {
-    outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true,
+    outDir: path.resolve(__dirname, "dist"),
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "lucide-react",
+          ],
+          charts: ["recharts"],
+          query: ["@tanstack/react-query"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 500,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
   },
 });

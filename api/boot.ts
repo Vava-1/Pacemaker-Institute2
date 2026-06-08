@@ -17,38 +17,106 @@ import { getDb } from "./queries/connection";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-// Security Headers
+// Security Headers with CSP
 app.use("*", secureHeaders({
   xFrameOptions: "DENY",
   xXssProtection: "1; mode=block",
   strictTransportSecurity: "max-age=31536000; includeSubDomains; preload",
   xContentTypeOptions: "nosniff",
   referrerPolicy: "strict-origin-when-cross-origin",
+  crossOriginOpenerPolicy: "same-origin",
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],
+    styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+    fontSrc: ["'self'", "https://fonts.gstatic.com"],
+    imgSrc: ["'self'", "data:", "blob:", "https:", "https://res.cloudinary.com"],
+    connectSrc: ["'self'", "https://api.stripe.com", "https://api.anthropic.com"],
+    frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
+    mediaSrc: ["'self'", "https:", "blob:"],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    upgradeInsecureRequests: [],
+  },
 }));
 
 // CORS
 app.use("*", cors({
   origin: env.isProduction ? [env.frontendUrl] : ["http://localhost:5173", "http://localhost:3000", env.frontendUrl],
   credentials: true,
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "Cookie"],
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization", "Cookie", "X-Requested-With"],
+  exposeHeaders: ["X-Total-Count", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+  maxAge: 86400,
 }));
 
-// Rate Limiting (100 requests per minute)
+// Handle OPTIONS preflight
+app.options("*", (c) => c.body(null, 204));
+
+// General Rate Limiting (100 requests per minute)
 app.use("/api/*", rateLimiter({
   windowMs: 60 * 1000,
   limit: 100,
   standardHeaders: "draft-6",
   keyGenerator: (c) => {
-    return c.req.header("x-forwarded-for") || "unknown-ip";
+    const userId = (c as any).get?.("userId");
+    return userId?.toString() || c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown-ip";
+  },
+  handler: (c) => {
+    logger.warn("Rate limit exceeded", { path: c.req.path, ip: c.req.header("x-forwarded-for") });
+    return c.json({ success: false, error: "Too many requests. Please try again later." }, 429);
   },
 }));
+
+// Auth-specific stricter rate limiting
+app.use("/api/auth/*", rateLimiter({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) => {
+    return c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown-ip";
+  },
+  handler: (c) => {
+    logger.warn("Auth rate limit exceeded", { path: c.req.path, ip: c.req.header("x-forwarded-for") });
+    return c.json({ success: false, error: "Too many authentication attempts. Please try again later." }, 429);
+  },
+}));
+
+// Request ID and logging middleware
+app.use("*", async (c, next) => {
+  const requestId = crypto.randomUUID();
+  c.set("requestId", requestId);
+  c.res.headers.set("X-Request-ID", requestId);
+
+  const start = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
+  const ip = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+  const userAgent = c.req.header("user-agent") || "unknown";
+
+  logger.info(`${method} ${path}`, { requestId, ip, userAgent });
+
+  await next();
+
+  const duration = Date.now() - start;
+  const status = c.res.status;
+
+  if (status >= 500) {
+    logger.error(`${method} ${path} ${status} (${duration}ms)`, { requestId, status, duration });
+  } else if (status >= 400) {
+    logger.warn(`${method} ${path} ${status} (${duration}ms)`, { requestId, status, duration });
+  } else {
+    logger.info(`${method} ${path} ${status} (${duration}ms)`, { requestId, status, duration });
+  }
+});
 
 // Mount webhook router BEFORE bodyLimit so we get raw body text for Stripe
 app.route("/api/webhooks", webhookRouter);
 
-// Body Limit to prevent large payloads (50MB) for remaining API endpoints
-app.use("/api/*", bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+// Body Limit to prevent large payloads
+app.use("/api/upload/*", bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 }));
 
 // Mount upload router
 app.route("/api/upload", uploadRouter);
@@ -88,21 +156,43 @@ app.get("/api/health", async (c) => {
     services.anthropic = { status: "not_configured" };
   }
 
-  const allOk = Object.values(services).every((s) => s.status === "ok" || s.status === "not_configured");
+  // 4. SMTP
+  if (env.smtpHost && env.smtpUser) {
+    services.smtp = { status: "ok", detail: "Configured" };
+  } else {
+    services.smtp = { status: "not_configured" };
+  }
+
   const anyDown = Object.values(services).some((s) => s.status === "down");
+  const status = anyDown ? "degraded" : "ok";
 
   return c.json(
     {
-      success: true,
-      data: {
-        status: anyDown ? "degraded" : allOk ? "ok" : "degraded",
-        timestamp: new Date().toISOString(),
-        env: env.nodeEnv,
-        services,
-      },
+      status,
+      timestamp: new Date().toISOString(),
+      env: env.nodeEnv,
+      version: "1.0.1",
+      uptime: process.uptime(),
+      services,
     },
     anyDown ? 503 : 200,
   );
+});
+
+// Readiness check
+app.get("/api/ready", async (c) => {
+  try {
+    const db = getDb();
+    await db.execute("SELECT 1" as any);
+    return c.json({ status: "ready", timestamp: new Date().toISOString() }, 200);
+  } catch {
+    return c.json({ status: "not ready", timestamp: new Date().toISOString() }, 503);
+  }
+});
+
+// Liveness check
+app.get("/api/live", (c) => {
+  return c.json({ alive: true, timestamp: new Date().toISOString() });
 });
 
 // OAuth routes
@@ -121,17 +211,52 @@ app.use("/api/trpc/*", async (c) => {
     endpoint: "/api/trpc",
     req: c.req.raw,
     router: appRouter,
-    createContext,
+    createContext: (opts) => createContext({ ...opts, req: c.req.raw }),
   });
 });
 
 // 404 catch-all for any unmatched /api/* path
-app.all("/api/*", (c) => c.json({ success: false, error: "Not Found" }, 404));
+app.all("/api/*", (c) => {
+  logger.warn("API 404", { path: c.req.path, method: c.req.method });
+  return c.json({ success: false, error: "Not Found" }, 404);
+});
 
 // Global error handler
 app.onError((err, c) => {
-  logger.error("Unhandled error in HTTP handler", err);
-  return c.json({ success: false, error: "Internal Server Error" }, 500);
+  const requestId = c.get("requestId") || "unknown";
+  logger.error("Unhandled error in HTTP handler", {
+    requestId,
+    path: c.req.path,
+    method: c.req.method,
+    error: err.message,
+    stack: env.isProduction ? undefined : err.stack,
+  });
+  return c.json(
+    {
+      success: false,
+      error: "Internal Server Error",
+      message: env.isProduction ? "An unexpected error occurred" : err.message,
+      requestId,
+    },
+    500,
+  );
+});
+
+// Graceful shutdown handlers
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received. Shutting down gracefully...");
+  setTimeout(() => {
+    logger.info("Forced shutdown after timeout");
+    process.exit(0);
+  }, 10000).unref();
+});
+
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received. Shutting down gracefully...");
+  setTimeout(() => {
+    logger.info("Forced shutdown after timeout");
+    process.exit(0);
+  }, 5000).unref();
 });
 
 export default app;
@@ -145,5 +270,7 @@ if (env.isProduction) {
   serve({ fetch: app.fetch, port }, () => {
     logger.info(`Server running on http://localhost:${port}/`);
     logger.info(`Health check: http://localhost:${port}/api/health`);
+    logger.info(`Ready check: http://localhost:${port}/api/ready`);
+    logger.info(`Live check: http://localhost:${port}/api/live`);
   });
 }
