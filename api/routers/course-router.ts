@@ -1,10 +1,27 @@
 import { z } from "zod";
 import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, modules, lessons, enrollments, categories } from "../../db/schema";
+import { courses, modules, lessons, enrollments, categories, users } from "../../db/schema";
 import { eq, and, like, desc, sql, inArray } from "drizzle-orm";
 
 export const courseRouter = createRouter({
+  publicStats: publicQuery.query(async () => {
+    const db = getDb();
+
+    const studentResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, "user"));
+    const instructorResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, "instructor"));
+    const courseResult = await db.select({ count: sql<number>`count(*)` }).from(courses).where(eq(courses.status, "published"));
+    const completedResult = await db.select({ count: sql<number>`count(*)` }).from(enrollments).where(eq(enrollments.isCompleted, true));
+    const ratingResult = await db.select({ avg: sql<string>`avg(rating)` }).from(courses).where(and(eq(courses.status, "published"), sql`rating > 0`));
+
+    return {
+      totalStudents: Number(studentResult[0]?.count ?? 0),
+      totalInstructors: Number(instructorResult[0]?.count ?? 0),
+      totalCourses: Number(courseResult[0]?.count ?? 0),
+      completedCourses: Number(completedResult[0]?.count ?? 0),
+      averageRating: ratingResult[0]?.avg ? parseFloat(ratingResult[0].avg).toFixed(1) : "0.0",
+    };
+  }),
   list: publicQuery
     .input(z.object({
       categorySlug: z.string().optional(),

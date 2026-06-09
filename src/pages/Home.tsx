@@ -115,6 +115,7 @@ export default function Home() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const { data: courses } = trpc.course.list.useQuery({ featured: true })
+  const { data: platformStats } = trpc.course.publicStats.useQuery(undefined, { enabled: true })
   const { data: dashboardStats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })
   const { data: leaderboard } = trpc.leaderboard.list.useQuery({ limit: 5 }, { enabled: true })
 
@@ -245,33 +246,41 @@ export default function Home() {
       </section>
 
       {/* ───── Stats Counter Bar ───── */}
-      <section className="py-10 md:py-16 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
-            <ScrollReveal>
-              <div className="text-center text-white">
-                <AnimatedCounter value="15" suffix="K+" />
-                <p className="text-blue-200 mt-1 text-sm font-medium">Active Students</p>
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 py-14 md:py-20">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[1px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-white/5 rounded-2xl overflow-hidden border border-white/10">
+            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">
+                {platformStats ? <AnimatedCounter value={String(platformStats.totalStudents)} /> : "—"}
               </div>
-            </ScrollReveal>
-            <ScrollReveal>
-              <div className="text-center text-white">
-                <AnimatedCounter value="100" suffix="+" />
-                <p className="text-blue-200 mt-1 text-sm font-medium">Expert Courses</p>
+              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Students</div>
+            </div>
+            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">
+                {platformStats ? <AnimatedCounter value={String(platformStats.totalInstructors)} /> : "—"}
               </div>
-            </ScrollReveal>
-            <ScrollReveal>
-              <div className="text-center text-white">
-                <AnimatedCounter value="50" suffix="K+" />
-                <p className="text-blue-200 mt-1 text-sm font-medium">Exercises Completed</p>
+              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Instructors</div>
+            </div>
+            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">
+                {platformStats ? <AnimatedCounter value={String(platformStats.totalCourses)} suffix="+" /> : "—"}
               </div>
-            </ScrollReveal>
-            <ScrollReveal>
-              <div className="text-center text-white">
-                <div className="text-3xl lg:text-4xl font-extrabold">4.9/5</div>
-                <p className="text-blue-200 mt-1 text-sm font-medium">Average Rating</p>
+              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Courses</div>
+            </div>
+            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">
+                {platformStats ? <AnimatedCounter value={String(platformStats.completedCourses)} suffix="+" /> : "—"}
               </div>
-            </ScrollReveal>
+              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Completed</div>
+            </div>
+            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
+              <div className="text-2xl md:text-3xl font-bold text-white">
+                {platformStats ? `${platformStats.averageRating}/5` : "—"}
+              </div>
+              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Rating</div>
+            </div>
           </div>
         </div>
       </section>
