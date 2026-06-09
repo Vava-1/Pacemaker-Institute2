@@ -7,7 +7,7 @@ import * as relations from "@db/relations";
 const fullSchema = { ...schema, ...relations };
 
 let pool: mysql.Pool | null = null;
-let instance: ReturnType<typeof drizzle<typeof fullSchema>> | null = null;
+let instance: any = null;
 
 export function createPool(): mysql.Pool {
   if (!env.databaseUrl) {
@@ -22,10 +22,9 @@ export function createPool(): mysql.Pool {
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
     connectTimeout: 10000,
-    acquireTimeout: 10000,
     idleTimeout: 600000,
     ssl: env.isProduction ? { rejectUnauthorized: true } : undefined,
-  });
+  } as mysql.PoolOptions);
 }
 
 export function getDb() {

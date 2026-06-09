@@ -2,15 +2,13 @@ import { useState } from 'react'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { Link } from 'react-router'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { toast } from 'sonner'
 import {
-  MessageSquare, Send, Users, Hash, Languages,
+  MessageSquare, Send, Hash, Languages,
   Wrench, Cake, Scissors, Brain, GraduationCap,
+  Search, MoreVertical, Camera,
 } from 'lucide-react'
 
 const roomIcons: Record<string, any> = {
@@ -50,13 +48,31 @@ const mockMessages: Record<number, any[]> = {
   ],
 }
 
+function formatTime(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+function formatLastSeen(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000)
+  if (diffMin < 1) return 'last seen just now'
+  if (diffMin < 60) return `last seen ${diffMin}m ago`
+  if (diffMin < 1440) return `last seen ${Math.floor(diffMin / 60)}h ago`
+  return `last seen on ${d.toLocaleDateString()}`
+}
+
 export default function Chat() {
   const { user } = useAuth()
   const [activeRoom, setActiveRoom] = useState<number>(1)
   const [message, setMessage] = useState('')
   const { data: rooms } = trpc.message.rooms.useQuery()
 
-  const activeRoomData = rooms?.find(r => r.id === activeRoom)
+  const activeRoomData = rooms?.find((r: any) => r.id === activeRoom)
   const messages = mockMessages[activeRoom] ?? []
   const Icon = activeRoomData ? (roomIcons[activeRoomData.category ?? ''] ?? MessageSquare) : MessageSquare
 
@@ -69,91 +85,132 @@ export default function Chat() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="max-w-md w-full mx-4">
-          <CardContent className="p-8 text-center">
-            <MessageSquare className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Community Chat</h2>
-            <p className="text-slate-500 mb-6">Login to join the conversation with fellow learners.</p>
-            <Link to="/login">
-              <Button className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white">Login to Chat</Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="max-w-md w-full mx-4 text-center">
+          <MessageSquare className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Community Chat</h2>
+          <p className="text-slate-500 mb-6 text-sm">Login to join the conversation with fellow learners.</p>
+          <Link to="/login">
+            <Button className="bg-[#075e54] hover:bg-[#054d44] text-white">Login to Chat</Button>
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex max-w-7xl mx-auto">
-      {/* Room List */}
-      <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-shrink-0">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-          <h2 className="font-bold flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" /> Chat Rooms
-          </h2>
-        </div>
-        <ScrollArea className="h-[calc(100%-60px)]">
-          <div className="p-2 space-y-1">
-            {rooms?.map(room => {
-              const RoomIcon = roomIcons[room.category ?? ''] ?? Hash
-              const isActive = activeRoom === room.id
-              return (
-                <button
-                  key={room.id}
-                  onClick={() => setActiveRoom(room.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
-                    isActive
-                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <RoomIcon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{room.name}</span>
-                </button>
-              )
-            })}
+    <div className="h-[calc(100vh-4rem)] flex">
+      {/* === Sidebar — WhatsApp-style chat list === */}
+      <div className="w-80 border-r border-gray-200 bg-white flex-shrink-0 flex flex-col">
+        {/* Sidebar Header */}
+        <div className="bg-[#075e54] text-white px-4 py-3 flex items-center justify-between">
+          <h2 className="font-semibold text-base">Chats</h2>
+          <div className="flex items-center gap-3">
+            <Camera className="h-5 w-5" />
+            <Search className="h-5 w-5" />
+            <MoreVertical className="h-5 w-5" />
           </div>
+        </div>
+
+        {/* Search bar */}
+        <div className="px-3 py-2 bg-gray-100">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              placeholder="Search or start new chat"
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-white text-sm border-0 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* Room List */}
+        <ScrollArea className="flex-1">
+          {rooms?.map((room: any) => {
+            const RoomIcon = roomIcons[room.category ?? ''] ?? Hash
+            const roomMsgs = mockMessages[room.id] ?? []
+            const lastMsg = roomMsgs[roomMsgs.length - 1]
+            const isActive = activeRoom === room.id
+            return (
+              <button
+                key={room.id}
+                onClick={() => setActiveRoom(room.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-gray-100 transition-colors ${
+                  isActive ? 'bg-[#e8f4f0]' : 'hover:bg-gray-50'
+                }`}
+              >
+                <div className="w-12 h-12 rounded-full bg-[#075e54] flex items-center justify-center flex-shrink-0">
+                  <RoomIcon className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm ${isActive ? 'font-semibold' : 'font-medium'} text-gray-900 truncate`}>
+                      {room.name}
+                    </span>
+                    {lastMsg && (
+                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                        {formatTime(lastMsg.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <span className="text-xs text-gray-500 truncate">
+                      {lastMsg ? lastMsg.content : room.description}
+                    </span>
+                    {roomMsgs.length > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-[#25d366] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 ml-2">
+                        {roomMsgs.length}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
         </ScrollArea>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {activeRoomData && (
+      {/* === Chat Area — WhatsApp-style === */}
+      <div className="flex-1 flex flex-col bg-[#e5ddd5]">
+        {activeRoomData ? (
           <>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                <Icon className="h-4 w-4 text-blue-600" />
+            {/* Chat Header */}
+            <div className="bg-[#075e54] text-white px-4 py-2 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                <Icon className="h-5 w-5" />
               </div>
-              <div>
-                <h3 className="font-semibold">{activeRoomData.name}</h3>
-                <p className="text-xs text-slate-500">{activeRoomData.description}</p>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-sm">{activeRoomData.name}</h3>
+                <p className="text-[11px] text-white/70 truncate">
+                  {formatLastSeen(messages[messages.length - 1]?.createdAt ?? new Date().toISOString())}
+                </p>
               </div>
-              <div className="ml-auto flex items-center gap-1 text-xs text-slate-500">
-                <Users className="h-3 w-3" />
-                <span>{messages.length + 5} online</span>
+              <div className="flex items-center gap-4">
+                <Search className="h-5 w-5" />
+                <MoreVertical className="h-5 w-5" />
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-3">
-                {messages.map(msg => {
+            {/* Messages */}
+            <ScrollArea className="flex-1 px-4 py-3" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23d4d9d0\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }}>
+              <div className="space-y-1">
+                {messages.map((msg, idx) => {
                   const isMe = msg.senderId === user?.id
+                  const showName = !isMe && (idx === 0 || messages[idx - 1].senderId !== msg.senderId)
                   return (
-                    <div key={msg.id} className={`flex items-start gap-2 ${isMe ? 'justify-end' : ''}`}>
-                      {!isMe && (
-                        <Avatar className="w-8 h-8 flex-shrink-0">
-                          <AvatarFallback className="text-xs bg-gradient-to-br from-blue-400 to-purple-500 text-white">
-                            {msg.senderName?.charAt(0) ?? 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                      <div className={`max-w-[70%] rounded-2xl px-3 py-2 ${
-                        isMe
-                          ? 'bg-blue-600 text-white rounded-br-md'
-                          : 'bg-slate-100 dark:bg-slate-800 rounded-bl-md'
-                      }`}>
-                        {!isMe && <div className="text-xs font-medium mb-0.5 opacity-70">{msg.senderName}</div>}
-                        <p className="text-sm">{msg.content}</p>
+                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className="max-w-[65%]">
+                        {showName && (
+                          <p className="text-[11px] text-emerald-700 font-medium ml-1 mb-0.5">{msg.senderName}</p>
+                        )}
+                        <div className={`px-3 py-1.5 text-sm shadow-sm ${
+                          isMe
+                            ? 'bg-[#dcf8c6] rounded-lg rounded-br-sm'
+                            : 'bg-white rounded-lg rounded-bl-sm'
+                        }`}>
+                          <p className="text-gray-800">{msg.content}</p>
+                          <p className={`text-[10px] text-right mt-0.5 ${isMe ? 'text-[#6b8a5e]' : 'text-gray-400'}`}>
+                            {formatTime(msg.createdAt)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )
@@ -161,21 +218,34 @@ export default function Chat() {
               </div>
             </ScrollArea>
 
-            <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-              <div className="flex gap-2">
-                <Input
-                  placeholder={`Message #${activeRoomData.name}...`}
-                  value={message}
-                  onChange={e => setMessage(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSend()}
-                  className="flex-1"
-                />
-                <Button onClick={handleSend} className="bg-blue-600 text-white">
-                  <Send className="h-4 w-4" />
-                </Button>
+            {/* Input */}
+            <div className="bg-gray-100 px-4 py-2 flex items-center gap-3">
+              <div className="text-gray-500 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
               </div>
+              <input
+                placeholder="Type a message"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                className="flex-1 h-10 rounded-lg border-0 px-3 text-sm outline-none bg-white"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!message.trim()}
+                className="text-[#075e54] disabled:text-gray-300"
+              >
+                <Send className="h-6 w-6" />
+              </button>
             </div>
           </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-[#f0f2f5]">
+            <div className="text-center">
+              <MessageSquare className="h-20 w-20 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-400 text-sm">Select a chat to start messaging</p>
+            </div>
+          </div>
         )}
       </div>
     </div>

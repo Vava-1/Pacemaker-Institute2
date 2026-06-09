@@ -11,6 +11,7 @@ export interface User {
   role: "user" | "instructor" | "admin";
   avatar: string | null;
   isSuspended: boolean;
+  studyStreak: number;
 }
 
 export interface Context {
@@ -48,6 +49,7 @@ export async function createContext(
         role: users.role,
         avatar: users.avatar,
         isSuspended: users.isSuspended,
+        studyStreak: users.studyStreak,
       })
       .from(users)
       .where(eq(users.id, payload.sub))

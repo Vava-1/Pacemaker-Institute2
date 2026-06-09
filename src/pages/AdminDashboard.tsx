@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Link } from 'react-router'
 import {
   Users, BookOpen, GraduationCap, DollarSign,
-  Shield, Loader2, UserX, UserCheck
+  Shield, Loader2, UserX, UserCheck, UserPlus
 } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
 import { z } from 'zod'
@@ -24,6 +24,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog'
 
 const settingsSchema = z.object({
   smtp_host: z.string().optional(),
@@ -163,7 +166,15 @@ function OverviewTab() {
   )
 }
 
+const createUserSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: z.enum(["user", "instructor", "admin"]).default("user"),
+})
+
 function UsersTab() {
+  const [open, setOpen] = useState(false)
   const { data: users, isLoading, refetch } = trpc.admin.users.useQuery()
   const toggleSuspension = trpc.admin.toggleUserSuspension.useMutation({
     onSuccess: () => {
@@ -183,6 +194,22 @@ function UsersTab() {
       toast.error(error.message)
     }
   })
+  const createUser = trpc.admin.createUser.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message)
+      setOpen(false)
+      form.reset()
+      refetch()
+    },
+    onError: (error) => {
+      toast.error(error.message)
+    }
+  })
+
+  const form = useForm<any>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: { name: '', email: '', password: '', role: 'user' },
+  })
 
   if (isLoading) {
     return (
@@ -194,9 +221,66 @@ function UsersTab() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Manage Users</CardTitle>
-        <CardDescription>View and manage user accounts</CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Manage Users</CardTitle>
+          <CardDescription>View and manage user accounts</CardDescription>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button><UserPlus className="h-4 w-4 mr-2" />Create User</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create User Account</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit((values) => createUser.mutate(values))} className="space-y-4">
+                <FormField control={form.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl><Input placeholder="John Doe" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="email" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl><Input placeholder="user@example.com" type="email" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="password" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl><Input placeholder="Min 8 characters" type="password" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="role" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="instructor">Instructor</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <Button type="submit" disabled={createUser.isPending} className="w-full">
+                  {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Account
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -211,7 +295,7 @@ function UsersTab() {
               </tr>
             </thead>
             <tbody>
-              {users?.map(u => (
+              {users?.map((u: any) => (
                 <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="py-4 px-2">
                     <div className="font-medium">{u.name}</div>
@@ -242,7 +326,7 @@ function UsersTab() {
                     <Button
                       variant={u.isSuspended ? "outline" : "destructive"}
                       size="sm"
-                      onClick={() => toggleSuspension.mutate({ userId: u.id, suspended: !u.isSuspended })}
+                      onClick={() => toggleSuspension.mutate({ userId: u.id, isSuspended: !u.isSuspended })}
                       disabled={toggleSuspension.isPending}
                       className="h-8"
                     >
@@ -269,7 +353,7 @@ function SettingsTab() {
   const { data: settings, isLoading } = trpc.admin.getSettings.useQuery()
   const updateSettings = trpc.admin.updateSettings.useMutation()
 
-  const form = useForm<z.infer<typeof settingsSchema>>({
+  const form = useForm<any>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       smtp_host: '',
@@ -284,23 +368,27 @@ function SettingsTab() {
   // Set default values once data is loaded
   useEffect(() => {
     if (settings) {
+      const settingsMap = Object.fromEntries(
+        (settings as Array<{ settingKey: string; settingValue: string | null }>).map(s => [s.settingKey, s.settingValue ?? ''])
+      )
       form.reset({
-        smtp_host: settings.smtp_host || '',
-        smtp_user: settings.smtp_user || '',
-        smtp_password: settings.smtp_password || '',
-        smtp_from_email: settings.smtp_from_email || '',
-        stripe_secret_key: settings.stripe_secret_key || '',
-        anthropic_api_key: settings.anthropic_api_key || '',
+        smtp_host: settingsMap.smtp_host || '',
+        smtp_user: settingsMap.smtp_user || '',
+        smtp_password: settingsMap.smtp_password || '',
+        smtp_from_email: settingsMap.smtp_from_email || '',
+        stripe_secret_key: settingsMap.stripe_secret_key || '',
+        anthropic_api_key: settingsMap.anthropic_api_key || '',
       })
     }
   }, [settings, form])
 
   function onSubmit(values: z.infer<typeof settingsSchema>) {
-    updateSettings.mutate(values, {
+    const payload = Object.entries(values).map(([key, value]) => ({ key, value: value ?? '' }))
+    updateSettings.mutate(payload, {
       onSuccess: () => {
         toast.success("Settings updated successfully")
       },
-      onError: (error) => {
+      onError: (error: any) => {
         toast.error(`Failed to update settings: ${error.message}`)
       }
     })

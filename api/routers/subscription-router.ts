@@ -1,4 +1,4 @@
-import { createRouter, publicQuery, authedQuery } from "../middleware";
+import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { subscriptionPlans, userSubscriptions } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";

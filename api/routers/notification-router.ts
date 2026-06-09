@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "../middleware";
+import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { notifications } from "../../db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -35,6 +35,6 @@ export const notificationRouter = createRouter({
     const db = getDb();
     const result = await db.select().from(notifications)
       .where(eq(notifications.userId, ctx.user.id));
-    return result.filter(n => !n.isRead).length;
+    return result.filter((n: any) => !n.isRead).length;
   }),
 });

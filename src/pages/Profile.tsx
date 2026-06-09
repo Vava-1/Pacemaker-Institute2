@@ -13,11 +13,13 @@ import {
   User, Mail, BookOpen, Trophy, Target, Award,
   Clock, Flame, Zap, GraduationCap, Camera, Save,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export default function Profile() {
   const { user } = useAuth()
   const { data: stats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })
   const { data: myCourses } = trpc.course.myCourses.useQuery()
+  const { t } = useTranslation()
 
   const [name, setName] = useState(user?.name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -45,7 +47,7 @@ export default function Profile() {
         <CardContent className="relative px-6 pb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-end -mt-12 mb-4 gap-4">
             <div className="relative">
-              <Avatar className="w-24 h-24 border-4 border-white dark:border-slate-900 shadow-lg">
+              <Avatar className="w-24 h-24 border-4 border-white shadow-lg">
                 <AvatarImage src={user.avatar ?? ''} />
                 <AvatarFallback className="text-2xl bg-gradient-to-br from-blue-400 to-purple-500 text-white">
                   {user.name?.charAt(0) ?? 'U'}
@@ -56,7 +58,7 @@ export default function Profile() {
               </button>
             </div>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold">{user.name}</h1>
+              <h1 className="text-2xl font-bold text-brand-950">{user.name}</h1>
               <p className="text-slate-500 flex items-center gap-2">
                 <Mail className="h-4 w-4" /> {user.email}
               </p>
@@ -102,9 +104,9 @@ export default function Profile() {
                       <CardContent className="p-4 flex items-center gap-4">
                         <img src={course.thumbnail} alt={course.title} className="w-16 h-12 rounded-lg object-cover" />
                         <div className="flex-1">
-                          <h4 className="font-medium">{course.title}</h4>
+                          <h4 className="font-medium">{t(`courseTitles.${course.slug}`, { defaultValue: course.title })}</h4>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-xs">{course.categoryName}</Badge>
+                            <Badge variant="outline" className="text-xs">{t(`categories.${course.categorySlug}`, { defaultValue: course.categoryName })}</Badge>
                             {course.isCompleted && <Badge className="bg-emerald-500 text-white text-xs">Completed</Badge>}
                           </div>
                         </div>
@@ -140,7 +142,7 @@ export default function Profile() {
                     <Label>Email</Label>
                     <Input value={email} onChange={e => setEmail(e.target.value)} type="email" />
                   </div>
-                  <Button onClick={handleSave} className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white">
+                  <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">
                     <Save className="mr-2 h-4 w-4" /> Save Changes
                   </Button>
                 </CardContent>
@@ -189,7 +191,7 @@ export default function Profile() {
                   { icon: Award, label: 'Course Pro', color: 'text-purple-500', bg: 'bg-purple-100' },
                   { icon: BookOpen, label: 'Bookworm', color: 'text-pink-500', bg: 'bg-pink-100' },
                 ].map((badge, i) => (
-                  <div key={i} className="text-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                  <div key={i} className="text-center p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                     <div className={`w-10 h-10 mx-auto mb-1 rounded-lg ${badge.bg} flex items-center justify-center`}>
                       <badge.icon className={`h-5 w-5 ${badge.color}`} />
                     </div>

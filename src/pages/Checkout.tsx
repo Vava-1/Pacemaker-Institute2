@@ -6,25 +6,27 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, CreditCard, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { useTranslation } from 'react-i18next'
 
 export default function Checkout() {
   const { slug } = useParams<{ slug: string }>()
   const { user } = useAuth()
+  const { t } = useTranslation()
   
   const { data: course, isLoading } = trpc.course.getBySlug.useQuery(
     { slug: slug! },
     { enabled: !!slug }
   )
 
-  const createCheckoutSession = trpc.payment.createCheckoutSession.useMutation({
-    onSuccess: (data) => {
+  const createCheckoutSession = trpc.payment.createCheckout.useMutation({
+    onSuccess: (data: any) => {
       if (data.url) {
         window.location.href = data.url
       } else {
         toast.error('Failed to initialize checkout')
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(error.message || 'An error occurred during checkout')
     }
   })
@@ -71,7 +73,7 @@ export default function Checkout() {
                   <img src={course.thumbnail ?? ''} alt={course.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold line-clamp-2">{course.title}</h3>
+                  <h3 className="font-semibold line-clamp-2">{t(`courseTitles.${course.slug}`, { defaultValue: course.title })}</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="secondary" className="text-xs">{course.level}</Badge>
                   </div>
@@ -124,7 +126,12 @@ export default function Checkout() {
 
                   <Button
                     className="w-full h-12 text-lg bg-[#635BFF] hover:bg-[#5851E5] text-white"
-                    onClick={() => createCheckoutSession.mutate({ courseId: course.id })}
+                    onClick={() => createCheckoutSession.mutate({
+                      courseId: course.id,
+                      priceId: '',
+                      successUrl: `${window.location.origin}/payment/success`,
+                      cancelUrl: `${window.location.origin}/courses/${course.slug}`,
+                    })}
                     disabled={createCheckoutSession.isPending}
                   >
                     <CreditCard className="mr-2 h-5 w-5" />

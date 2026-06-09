@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { useAuth } from '@/hooks/useAuth'
 import { trpc } from '@/providers/trpc'
@@ -8,31 +9,32 @@ import { Check, Sparkles, Zap, Crown, ArrowRight } from 'lucide-react'
 
 export default function Subscription() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const { data: plans } = trpc.subscription.plans.useQuery()
   const { data: mySub } = trpc.subscription.mySubscription.useQuery(undefined, { enabled: !!user })
 
   const planConfig = [
-    { gradient: 'from-slate-500 to-slate-600', icon: Sparkles, buttonText: 'Get Started' },
-    { gradient: 'from-blue-600 to-purple-600', icon: Zap, buttonText: 'Upgrade to Pro', popular: true },
-    { gradient: 'from-amber-500 to-orange-600', icon: Crown, buttonText: 'Go Expert' },
+    { gradient: 'from-slate-500 to-slate-600', icon: Sparkles, buttonKey: 'subscription.getStarted' },
+    { gradient: 'from-blue-600 to-purple-600', icon: Zap, buttonKey: 'subscription.upgradeToPro', popular: true },
+    { gradient: 'from-amber-500 to-orange-600', icon: Crown, buttonKey: 'subscription.goExpert' },
   ]
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="text-center mb-12">
-        <h1 className="text-3xl font-bold mb-2">Choose Your Plan</h1>
-        <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
-          Unlock your full potential with our premium plans. Get unlimited access to courses, AI tutoring, and exclusive features.
+        <h1 className="text-3xl font-bold text-brand-950 mb-2">{t('subscription.title')}</h1>
+        <p className="text-slate-500 max-w-xl mx-auto">
+          {t('subscription.description')}
         </p>
         {mySub && (
           <Badge className="mt-4 bg-emerald-500 text-white">
-            Current Plan: {mySub.planName}
+            {t('subscription.currentPlanLabel')}: {mySub.planName}
           </Badge>
         )}
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {plans?.map((plan, i) => {
+        {plans?.map((plan: any, i: number) => {
           const config = planConfig[i] ?? planConfig[0]
           const Icon = config.icon
           const features = (plan.features as string[] | null) ?? []
@@ -42,7 +44,7 @@ export default function Subscription() {
             <Card key={plan.id} className={`relative overflow-hidden ${config.popular ? 'ring-2 ring-blue-500 shadow-xl scale-105' : ''}`}>
               {config.popular && (
                 <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                  MOST POPULAR
+                  {t('subscription.mostPopular')}
                 </div>
               )}
 
@@ -53,7 +55,7 @@ export default function Subscription() {
                 </div>
                 <div className="flex items-end gap-1">
                   <span className="text-4xl font-bold">${plan.price}</span>
-                  <span className="text-white/70 text-sm mb-1">/month</span>
+                  <span className="text-white/70 text-sm mb-1">{t('subscription.perMonth')}</span>
                 </div>
                 <p className="text-white/80 text-sm mt-2">{plan.description}</p>
               </CardHeader>
@@ -70,16 +72,16 @@ export default function Subscription() {
 
                 {user ? (
                   <Button
-                    className={`w-full ${isCurrentPlan ? 'bg-slate-100 text-slate-500' : `bg-gradient-to-r ${config.gradient} text-white hover:opacity-90`}`}
+                    className={`w-full ${isCurrentPlan ? 'bg-slate-100 text-slate-500' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
                     disabled={isCurrentPlan}
                   >
-                    {isCurrentPlan ? 'Current Plan' : config.buttonText}
+                    {isCurrentPlan ? t('subscription.currentPlan') : t(config.buttonKey)}
                     {!isCurrentPlan && <ArrowRight className="ml-2 h-4 w-4" />}
                   </Button>
                 ) : (
                   <Link to="/login">
-                    <Button className={`w-full bg-gradient-to-r ${config.gradient} text-white`}>
-                      Login to Subscribe
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                      {t('subscription.loginToSubscribe')}
                     </Button>
                   </Link>
                 )}
@@ -91,7 +93,7 @@ export default function Subscription() {
 
       <div className="mt-12 text-center">
         <p className="text-sm text-slate-500">
-          All plans include a 14-day money-back guarantee. Cancel anytime.
+          {t('subscription.guarantee')}
         </p>
       </div>
     </div>

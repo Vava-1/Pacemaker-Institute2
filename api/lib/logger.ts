@@ -62,7 +62,7 @@ export const logger = {
     console.warn(...fmt("warn", args));
     if (env.isProduction) {
       const message = args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ");
-      void sendToSentry("warning", message);
+      void sendToSentry("warn", message);
     }
   },
   error(...args: unknown[]): void {

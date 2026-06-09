@@ -1,16 +1,16 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { createRouter, publicProcedure } from "./router";
+import { createRouter, publicProcedure } from "./trpc";
 import { getDb } from "./queries/connection";
 import { users, passwordResets } from "@db/schema";
+import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import {
   hashPassword,
   verifyPassword,
   createAccessToken,
   createRefreshToken,
-  verifyAccessToken,
   verifyRefreshToken,
   verifyPasswordResetToken,
   createPasswordResetToken,
@@ -18,9 +18,13 @@ import {
 } from "./lib/auth";
 import {
   sendWelcomeEmail,
-  sendVerificationEmail,
   sendPasswordResetEmail,
+  sendOtpEmail,
 } from "./lib/mailer";
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
@@ -88,17 +92,29 @@ export const authRouter = createRouter({
         
         const userId = Number(result.insertId);
         
-        // Send emails asynchronously (don't block registration)
+        // Generate and store OTP
+        const otp = generateOtp();
+        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        
+        await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, userId));
+        
+        // Send OTP email
+        sendOtpEmail(input.email, input.name, otp).catch((err) =>
+          logger.error("Failed to send OTP email", { error: err, email: input.email })
+        );
+        
         sendWelcomeEmail(input.email, input.name).catch((err) =>
           logger.error("Failed to send welcome email", { error: err, email: input.email })
-        );
-        sendVerificationEmail(input.email, input.name, verificationToken).catch((err) =>
-          logger.error("Failed to send verification email", { error: err, email: input.email })
         );
         
         logger.info("User registered", { userId, email: input.email, role: input.role });
         
-        return { success: true, userId, message: "Registration successful. Please check your email to verify your account." };
+        return { 
+          success: true, 
+          userId, 
+          message: "Registration successful. Please check your email for the OTP code to verify your account.",
+          ...(env.isDevelopment ? { devOtp: otp } : {}),
+        };
       } catch (err: any) {
         logger.error("Registration failed", { error: err.message, email: input.email });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Registration failed. Please try again." });
@@ -127,7 +143,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
       
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
       
@@ -168,7 +184,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
       }
       
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
       
@@ -203,7 +219,7 @@ export const authRouter = createRouter({
           expiresAt: new Date(Date.now() + 3600000),
         });
         
-        sendPasswordResetEmail(user.email, user.name, resetToken).catch((err) =>
+        sendPasswordResetEmail(user.email, user.name ?? 'User', resetToken).catch((err) =>
           logger.error("Failed to send password reset email", { error: err })
         );
       }
@@ -296,6 +312,79 @@ export const authRouter = createRouter({
       logger.info("Email verified", { userId: userRows[0].id });
       
       return { message: "Email verified successfully" };
+    }),
+
+  verifyOtp: publicProcedure
+    .input(z.object({ email: z.string().email(), code: z.string().length(6) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+      
+      if (userRows.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      const user = userRows[0];
+      
+      if (user.emailVerified) {
+        return { message: "Email already verified" };
+      }
+      
+      if (!user.otpCode || !user.otpExpiresAt) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No OTP code found. Please request a new one." });
+      }
+      
+      if (new Date() > new Date(user.otpExpiresAt)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "OTP code has expired. Please request a new one." });
+      }
+      
+      if (user.otpCode !== input.code) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid OTP code" });
+      }
+      
+      await db.update(users).set({
+        emailVerified: true,
+        emailVerifyToken: null,
+        otpCode: null,
+        otpExpiresAt: null,
+      }).where(eq(users.id, user.id));
+      
+      logger.info("Email verified via OTP", { userId: user.id });
+      
+      return { message: "Email verified successfully" };
+    }),
+
+  resendOtp: publicProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+      
+      if (userRows.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+      
+      const user = userRows[0];
+      
+      if (user.emailVerified) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Email already verified" });
+      }
+      
+      const otp = generateOtp();
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      
+      await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, user.id));
+      
+      sendOtpEmail(user.email, user.name ?? 'User', otp).catch((err) =>
+        logger.error("Failed to resend OTP email", { error: err, email: user.email })
+      );
+      
+      logger.info("OTP resent", { userId: user.id });
+      
+      return { 
+        message: "OTP sent successfully",
+        ...(env.isDevelopment ? { devOtp: otp } : {}),
+      };
     }),
 
   me: publicProcedure.query(async ({ ctx }) => {

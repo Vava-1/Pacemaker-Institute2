@@ -1,4 +1,5 @@
 import * as jose from "jose";
+// @ts-expect-error bcryptjs has no types
 import bcrypt from "bcryptjs";
 import { env } from "./env";
 
@@ -24,7 +25,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function createAccessToken(payload: Omit<TokenPayload, "iat" | "exp">): Promise<string> {
   const secret = new TextEncoder().encode(env.jwtAccessSecret);
-  return new jose.SignJWT({ ...payload, sub: payload.sub })
+  return new jose.SignJWT({ ...payload, sub: String(payload.sub) })
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("15m")
@@ -33,7 +34,7 @@ export async function createAccessToken(payload: Omit<TokenPayload, "iat" | "exp
 
 export async function createRefreshToken(payload: Omit<TokenPayload, "iat" | "exp">): Promise<string> {
   const secret = new TextEncoder().encode(env.jwtRefreshSecret);
-  return new jose.SignJWT({ ...payload, sub: payload.sub })
+  return new jose.SignJWT({ ...payload, sub: String(payload.sub) })
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -106,7 +107,7 @@ export function validatePassword(password: string): { valid: boolean; errors: st
 
 export async function createPasswordResetToken(userId: number, email: string): Promise<string> {
   const secret = new TextEncoder().encode(env.jwtAccessSecret + "_reset");
-  return new jose.SignJWT({ sub: userId, email, type: "password_reset" })
+  return new jose.SignJWT({ sub: String(userId), email, type: "password_reset" })
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("1h")

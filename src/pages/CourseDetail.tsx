@@ -1,24 +1,36 @@
 import { useParams, Link } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft } from 'lucide-react'
+import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function CourseDetail() {
+  const { t } = useTranslation()
   const { slug } = useParams<{ slug: string }>()
   const { user } = useAuth()
   const utils = trpc.useUtils()
   const { data: course } = trpc.course.getBySlug.useQuery({ slug: slug! })
+  const { data: myCourses } = trpc.course.myCourses.useQuery(undefined, { enabled: !!user })
   const enroll = trpc.course.enroll.useMutation({
-    onSuccess: () => {
-      toast.success('Successfully enrolled!')
+    onSuccess: (data) => {
+      if (data.paymentStatus === 'paid') {
+        toast.success('Successfully enrolled!')
+      } else {
+        toast.info('Enrollment created. Payment is required to access course content.')
+      }
       utils.course.myCourses.invalidate()
     },
   })
+
+  const myEnrollment = myCourses?.find((c: any) => c.id === course?.id)
+  const isEnrolled = !!myEnrollment
+  const isPaid = myEnrollment?.paymentStatus === 'paid'
+  const isFree = course && Number(course.price) === 0
 
   if (!course) {
     return (
@@ -41,10 +53,10 @@ export default function CourseDetail() {
           </Link>
           <div className="flex flex-wrap gap-2 mb-4">
             <Badge className="bg-white/20 text-white">{course.level}</Badge>
-            <Badge className="bg-white/20 text-white">{course.categoryName}</Badge>
+            <Badge className="bg-white/20 text-white">{t(`categories.${course.categorySlug}`, { defaultValue: course.categoryName })}</Badge>
             <Badge className="bg-white/20 text-white">{course.language}</Badge>
           </div>
-          <h1 className="text-3xl lg:text-4xl font-bold mb-4">{course.title}</h1>
+          <h1 className="text-3xl lg:text-4xl font-bold mb-4">{t(`courseTitles.${course.slug}`, { defaultValue: course.title })}</h1>
           <p className="text-lg text-slate-300 mb-6 max-w-3xl">{course.description}</p>
           <div className="flex flex-wrap items-center gap-6 text-sm">
             <span className="flex items-center gap-1"><Star className="h-4 w-4 text-amber-400 fill-amber-400" /> {course.rating} rating</span>
@@ -137,7 +149,32 @@ export default function CourseDetail() {
                 )}
               </div>
 
-              {user ? (
+              {!user ? (
+                <Link to="/login">
+                  <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
+                    <Lock className="mr-2 h-4 w-4" /> Login to Enroll
+                  </Button>
+                </Link>
+              ) : isEnrolled && isPaid ? (
+                <Button className="w-full bg-emerald-500 text-white mb-3" disabled>
+                  <Award className="mr-2 h-4 w-4" /> Enrolled
+                </Button>
+              ) : isEnrolled && !isPaid ? (
+                <Link to={`/checkout?courseId=${course.id}`}>
+                  <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
+                    Pay Now — ${course.price}
+                  </Button>
+                </Link>
+              ) : isFree ? (
+                <Button
+                  className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
+                  onClick={() => enroll.mutate({ courseId: course.id })}
+                  disabled={enroll.isPending}
+                >
+                  <Award className="mr-2 h-4 w-4" />
+                  {enroll.isPending ? 'Enrolling...' : 'Enroll Now (Free)'}
+                </Button>
+              ) : (
                 <Button
                   className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
                   onClick={() => enroll.mutate({ courseId: course.id })}
@@ -146,12 +183,6 @@ export default function CourseDetail() {
                   <Award className="mr-2 h-4 w-4" />
                   {enroll.isPending ? 'Enrolling...' : 'Enroll Now'}
                 </Button>
-              ) : (
-                <Link to="/login">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
-                    Login to Enroll
-                  </Button>
-                </Link>
               )}
 
               <div className="space-y-3 text-sm pt-4 border-t border-slate-100 dark:border-slate-800">

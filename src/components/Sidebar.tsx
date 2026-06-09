@@ -28,8 +28,8 @@ export function Sidebar() {
   if (!user) return null
 
   return (
-    <aside className="fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 overflow-y-auto z-40 hidden lg:block">
-      <div className="p-4 space-y-1">
+    <aside className="fixed left-0 top-16 w-64 h-[calc(100vh-4rem)] bg-[#0f172a] border-r border-[#1e293b] z-40 hidden lg:flex lg:flex-col">
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
         {navItems.map(item => {
           const isActive = location.pathname === item.href || location.pathname.startsWith(item.href.split('?')[0])
           const Icon = item.icon
@@ -38,8 +38,8 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200"
+                  ? "bg-blue-600/20 text-blue-300"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
               )}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
@@ -52,17 +52,20 @@ export function Sidebar() {
         })}
 
         {user.role === 'admin' && (
-          <Link to="/admin"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mt-4",
-              location.pathname === '/admin'
-                ? "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400"
-                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-            )}
-          >
-            <Shield className="h-4 w-4 flex-shrink-0" />
-            <span>Admin Dashboard</span>
-          </Link>
+          <>
+            <div className="border-t border-slate-700 my-3" />
+            <Link to="/admin"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                location.pathname === '/admin'
+                  ? "bg-purple-600/20 text-purple-300"
+                  : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              )}
+            >
+              <Shield className="h-4 w-4 flex-shrink-0" />
+              <span>Admin Dashboard</span>
+            </Link>
+          </>
         )}
       </div>
     </aside>

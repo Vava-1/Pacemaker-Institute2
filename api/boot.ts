@@ -115,7 +115,9 @@ app.use("*", async (c, next) => {
 app.route("/api/webhooks", webhookRouter);
 
 // Body Limit to prevent large payloads
-app.use("/api/upload/*", bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+// Proxy uploads (images, PDFs, small videos) — 100MB
+// Large videos use direct-to-Cloudinary upload (bypasses this limit)
+app.use("/api/upload", bodyLimit({ maxSize: 100 * 1024 * 1024 }));
 app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 }));
 
 // Mount upload router
@@ -206,14 +208,19 @@ app.get("/api/oauth/google/callback", async (c) => {
 });
 
 // tRPC
-app.use("/api/trpc/*", async (c) => {
+async function trpcHandler(c: any) {
+  console.log("tRPC handler called", c.req.path, c.req.method);
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
     router: appRouter,
     createContext: (opts) => createContext({ ...opts, req: c.req.raw }),
   });
-});
+}
+
+app.get("/api/trpc", (c) => c.json({ message: "trpc GET" }));
+app.post("/api/trpc", trpcHandler);
+app.all("/api/trpc/*", trpcHandler);
 
 // 404 catch-all for any unmatched /api/* path
 app.all("/api/*", (c) => {

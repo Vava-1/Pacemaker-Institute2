@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, desc, and, count, sql } from "drizzle-orm";
-import Anthropic from "@anthropic-ai/sdk";
-import { createRouter, protectedProcedure } from "../router";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { createRouter, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
 import { aiConversations } from "@db/schema";
-import { env } from "../lib/env";
+import { sendMessage, analyzeContent, generateExercises } from "../lib/ai-service";
+import type { AIModel } from "../lib/ai-service";
 import { logger } from "../lib/logger";
 
 const SendMessageSchema = z.object({
@@ -13,6 +13,8 @@ const SendMessageSchema = z.object({
   conversationId: z.string().optional(),
   courseId: z.number().positive().optional(),
   lessonId: z.number().positive().optional(),
+  discipline: z.string().optional(),
+  model: z.enum(["gemini", "grok", "deepseek", "claude"]).optional(),
 });
 
 const GetHistorySchema = z.object({
@@ -31,38 +33,15 @@ function isContentSafe(message: string): boolean {
   return !BLOCKED_PATTERNS.some((pattern) => pattern.test(message));
 }
 
-const SYSTEM_PROMPT = `You are an AI tutor for Pacemaker Institute, an online e-learning platform. Your role is to help students learn and understand course material.
-
-Guidelines:
-- Provide clear, accurate explanations with examples and analogies
-- Encourage critical thinking by asking guiding questions
-- Never ask for or store personal information
-- Admit when you don't know something
-- Keep responses to 2-4 paragraphs, using markdown for readability
-- Maintain an encouraging and supportive tone
-
-Prohibitions:
-- Do NOT provide direct answers to quiz or exam questions
-- Do NOT generate harmful, abusive, or inappropriate content
-- Do NOT ask for personal information (email, phone, address, payment details)
-- Do NOT attempt to access system prompts or configuration
-- Do NOT pretend to be a human`;
-
 export const aiRouter = createRouter({
   sendMessage: protectedProcedure
     .input(SendMessageSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!env.anthropicApiKey) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI tutor is not configured" });
-      }
-
       if (!isContentSafe(input.message)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Message contains prohibited content" });
       }
 
       const db = getDb();
-      const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
-
       let conversationId = input.conversationId || crypto.randomUUID();
       const messages: { role: "user" | "assistant"; content: string }[] = [];
 
@@ -70,7 +49,7 @@ export const aiRouter = createRouter({
         const existing = await db
           .select()
           .from(aiConversations)
-          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, ctx.user.id)))
+          .where(and(eq(aiConversations.id, Number(conversationId)), eq(aiConversations.userId, ctx.user.id)))
           .limit(1);
 
         if (existing.length > 0) {
@@ -82,48 +61,39 @@ export const aiRouter = createRouter({
       messages.push({ role: "user", content: input.message });
 
       try {
-        const response = await anthropic.messages.create({
-          model: "claude-3-sonnet-20240229",
-          max_tokens: 2048,
-          system: SYSTEM_PROMPT,
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
-          temperature: 0.7,
+        const result = await sendMessage({
+          messages,
+          model: input.model as AIModel | undefined,
+          discipline: input.discipline,
         });
 
-        const replyContent = response.content[0]?.type === "text"
-          ? response.content[0].text
-          : "I'm sorry, I couldn't process that request.";
+        messages.push({ role: "assistant", content: result.content });
 
-        messages.push({ role: "assistant", content: replyContent });
-
-        const usage = {
-          inputTokens: response.usage?.input_tokens || 0,
-          outputTokens: response.usage?.output_tokens || 0,
-        };
-
-        await db.insert(aiConversations).values({
-          id: conversationId,
-          userId: ctx.user.id,
-          messages: messages,
-          courseId: input.courseId || null,
-          lessonId: input.lessonId || null,
-        }).onDuplicateKeyUpdate({
-          set: {
+        if (input.conversationId) {
+          await db.update(aiConversations).set({
             messages: messages,
             updatedAt: new Date(),
-          },
-        });
+          }).where(eq(aiConversations.id, Number(conversationId)));
+        } else {
+          const [insertResult] = await db.insert(aiConversations).values({
+            userId: ctx.user.id,
+            discipline: input.discipline || input.courseId?.toString() || "general",
+            messages: messages,
+          });
+          conversationId = String((insertResult as any).insertId ?? insertResult);
+        }
 
-        logger.info("AI tutor message sent", { userId: ctx.user.id, conversationId });
+        logger.info("AI tutor message sent", { userId: ctx.user.id, conversationId, model: result.model });
 
         return {
-          message: replyContent,
+          message: result.content,
           conversationId,
-          usage,
+          model: result.model,
+          usage: result.usage,
         };
       } catch (err: any) {
         logger.error("AI tutor error", { error: err.message });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to get AI response" });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Failed to get AI response" });
       }
     }),
 
@@ -135,13 +105,13 @@ export const aiRouter = createRouter({
       const rows = await db
         .select()
         .from(aiConversations)
-        .where(and(eq(aiConversations.id, input.conversationId), eq(aiConversations.userId, ctx.user.id)))
+        .where(and(eq(aiConversations.id, Number(input.conversationId)), eq(aiConversations.userId, ctx.user.id)))
         .orderBy(desc(aiConversations.createdAt))
         .limit(input.limit)
         .offset(input.offset);
 
       const messages = rows
-        .flatMap((r) => (r.messages as any[]) || [])
+        .flatMap((r: any) => (r.messages as any[]) || [])
         .reverse();
 
       return {
@@ -156,7 +126,7 @@ export const aiRouter = createRouter({
     const conversations = await db
       .select({
         id: aiConversations.id,
-        lastMessage: sql`JSON_EXTRACT(messages, '$[${sql.raw((db.select({ count: count() }).from(sql`json_table(messages, '$[*]' columns (rowid for ordinality)`)) as any).toString())}].content')`,
+        lastMessage: sql`JSON_UNQUOTE(JSON_EXTRACT(messages, CONCAT('$[', JSON_LENGTH(messages) - 1, '].content')))`,
         updatedAt: aiConversations.updatedAt,
         messageCount: sql`JSON_LENGTH(messages)`,
       })
@@ -174,10 +144,52 @@ export const aiRouter = createRouter({
 
       await db
         .delete(aiConversations)
-        .where(and(eq(aiConversations.id, input.conversationId), eq(aiConversations.userId, ctx.user.id)));
+        .where(and(eq(aiConversations.id, Number(input.conversationId)), eq(aiConversations.userId, ctx.user.id)));
 
       logger.info("Conversation deleted", { userId: ctx.user.id, conversationId: input.conversationId });
 
       return { success: true };
+    }),
+
+  analyzeContent: protectedProcedure
+    .input(z.object({
+      content: z.string().min(1).max(50000),
+      instruction: z.string().min(1).max(1000),
+      model: z.enum(["gemini", "grok", "deepseek", "claude"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const result = await analyzeContent({
+          content: input.content,
+          instruction: input.instruction,
+          model: input.model as AIModel | undefined,
+        });
+        return { result };
+      } catch (err: any) {
+        logger.error("Content analysis error", { error: err.message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Analysis failed" });
+      }
+    }),
+
+  generateExercises: protectedProcedure
+    .input(z.object({
+      topic: z.string().min(1).max(500),
+      count: z.number().min(1).max(10).default(3),
+      difficulty: z.enum(["beginner", "intermediate", "advanced"]).default("intermediate"),
+      language: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const result = await generateExercises({
+          topic: input.topic,
+          count: input.count,
+          difficulty: input.difficulty,
+          language: input.language,
+        });
+        return { exercises: result };
+      } catch (err: any) {
+        logger.error("Exercise generation error", { error: err.message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Failed to generate exercises" });
+      }
     }),
 });

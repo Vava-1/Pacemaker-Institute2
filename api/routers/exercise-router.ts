@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery } from "../middleware";
+import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { exercises, exerciseAttempts } from "../../db/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -104,8 +104,8 @@ export const exerciseRouter = createRouter({
       .where(eq(exerciseAttempts.userId, ctx.user.id));
 
     const total = attempts.length;
-    const correct = attempts.filter(a => a.isCorrect).length;
-    const totalPoints = attempts.reduce((sum, a) => sum + (a.pointsEarned ?? 0), 0);
+    const correct = attempts.filter((a: any) => a.isCorrect).length;
+    const totalPoints = attempts.reduce((sum: number, a: any) => sum + (a.pointsEarned ?? 0), 0);
 
     return { total, correct, incorrect: total - correct, accuracy: total > 0 ? Math.round((correct / total) * 100) : 0, totalPoints };
   }),

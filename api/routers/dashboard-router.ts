@@ -1,7 +1,7 @@
-import { createRouter, authedQuery } from "../middleware";
+import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { courses, enrollments, exerciseAttempts, leaderboardEntries, certificates, notifications } from "../../db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export const dashboardRouter = createRouter({
   stats: authedQuery.query(async ({ ctx }) => {
@@ -13,9 +13,9 @@ export const dashboardRouter = createRouter({
     const myCerts = await db.select().from(certificates).where(eq(certificates.userId, userId));
     const myNotifications = await db.select().from(notifications).where(eq(notifications.userId, userId));
 
-    const totalPoints = attempts.reduce((sum, a) => sum + (a.pointsEarned ?? 0), 0);
+    const totalPoints = attempts.reduce((sum: number, a: any) => sum + (a.pointsEarned ?? 0), 0);
     const exercisesCompleted = attempts.length;
-    const correctAnswers = attempts.filter(a => a.isCorrect).length;
+    const correctAnswers = attempts.filter((a: any) => a.isCorrect).length;
     const accuracy = exercisesCompleted > 0 ? Math.round((correctAnswers / exercisesCompleted) * 100) : 0;
 
     const rankEntry = await db.select().from(leaderboardEntries)
@@ -23,13 +23,13 @@ export const dashboardRouter = createRouter({
 
     return {
       enrolledCourses: myEnrollments.length,
-      completedCourses: myEnrollments.filter(e => e.isCompleted).length,
-      totalStudyMinutes: myEnrollments.reduce((sum, e) => sum + (e.totalTimeSpent ?? 0), 0),
+      completedCourses: myEnrollments.filter((e: any) => e.isCompleted).length,
+      totalStudyMinutes: myEnrollments.reduce((sum: number, e: any) => sum + (e.totalTimeSpent ?? 0), 0),
       exercisesCompleted,
       accuracy,
       totalPoints,
       certificates: myCerts.length,
-      unreadNotifications: myNotifications.filter(n => !n.isRead).length,
+      unreadNotifications: myNotifications.filter((n: any) => !n.isRead).length,
       currentStreak: ctx.user.studyStreak ?? 0,
       rank: rankEntry[0]?.rank ?? null,
       globalRank: rankEntry[0] ? await getGlobalRank(db, totalPoints) : null,
@@ -65,7 +65,7 @@ export const dashboardRouter = createRouter({
       rating: courses.rating,
       price: courses.price,
       categoryId: courses.categoryId,
-    }).from(courses).where(sql`${courses.isPublished} = true`).orderBy(desc(courses.rating)).limit(6);
+    }).from(courses).where(eq(courses.status, "published")).orderBy(desc(courses.rating)).limit(6);
 
     return query;
   }),

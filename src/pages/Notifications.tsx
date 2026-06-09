@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { Link } from 'react-router'
@@ -40,9 +41,10 @@ const mockNotifications = [
 
 export default function Notifications() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const markRead = trpc.notification.markRead.useMutation()
   const markAllRead = trpc.notification.markAllRead.useMutation({
-    onSuccess: () => toast.success('All notifications marked as read'),
+    onSuccess: () => toast.success(t('notifications.markedAllRead')),
   })
 
   const formatTime = (dateStr: string) => {
@@ -61,10 +63,10 @@ export default function Notifications() {
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center">
             <Bell className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Notifications</h2>
-            <p className="text-slate-500 mb-6">Login to see your notifications.</p>
+            <h2 className="text-xl font-bold mb-2">{t('notifications.title')}</h2>
+            <p className="text-slate-500 mb-6">{t('notifications.loginPrompt')}</p>
             <Link to="/login">
-              <Button className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white">Login</Button>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">{t('notifications.loginBtn')}</Button>
             </Link>
           </CardContent>
         </Card>
@@ -76,11 +78,11 @@ export default function Notifications() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="text-sm text-slate-500">Stay updated with your learning activity</p>
+          <h1 className="text-2xl font-bold text-brand-950">{t('notifications.title')}</h1>
+          <p className="text-sm text-slate-500">{t('notifications.subtitle')}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => markAllRead.mutate()}>
-          <CheckCircle className="mr-2 h-4 w-4" /> Mark all read
+          <Button variant="outline" size="sm" onClick={() => markAllRead.mutate()}>
+          <CheckCircle className="mr-2 h-4 w-4" /> {t('notifications.markAllRead')}
         </Button>
       </div>
 
@@ -89,19 +91,19 @@ export default function Notifications() {
           const Icon = typeIcons[notif.type] ?? Bell
           const colorClass = typeColors[notif.type] ?? 'bg-slate-100 text-slate-600'
           return (
-            <Card key={notif.id} className={!notif.isRead ? 'border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10' : ''}>
+            <Card key={notif.id} className={!notif.isRead ? 'border-blue-200 bg-blue-50/50' : ''}>
               <CardContent className="p-4 flex items-start gap-4">
                 <div className={`w-10 h-10 rounded-lg ${colorClass} flex items-center justify-center flex-shrink-0`}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h4 className={`text-sm font-semibold ${!notif.isRead ? 'text-blue-700 dark:text-blue-300' : ''}`}>
+                    <h4 className={`text-sm font-semibold ${!notif.isRead ? 'text-blue-700' : ''}`}>
                       {notif.title}
                     </h4>
                     {!notif.isRead && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{notif.message}</p>
+                  <p className="text-sm text-slate-500 mb-2">{notif.message}</p>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-400 flex items-center gap-1">
                       <Clock className="h-3 w-3" /> {formatTime(notif.createdAt)}
@@ -111,7 +113,7 @@ export default function Notifications() {
                         className="text-xs text-blue-600 hover:underline"
                         onClick={() => markRead.mutate({ id: notif.id })}
                       >
-                        Mark as read
+                        {t('notifications.markAsRead')}
                       </button>
                     )}
                   </div>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery } from "../middleware";
+import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { leaderboardEntries } from "../../db/schema";
 import { eq, desc, and } from "drizzle-orm";

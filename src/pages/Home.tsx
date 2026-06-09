@@ -1,403 +1,573 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '@/hooks/useAuth'
 import { trpc } from '@/providers/trpc'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  BookOpen, Trophy, Users, Clock, GraduationCap, Brain, Languages,
-  Wrench, Cake, Scissors, ArrowRight, Sparkles, Star, Zap,
-  TrendingUp, Target, Award,
+  BookOpen, Users, Clock, GraduationCap, Brain, Languages,
+  Wrench, Cake, Scissors, ArrowRight, Star,
+  TrendingUp, Target, Award, ChevronRight, CheckCircle2,
 } from 'lucide-react'
 
-const categoryIcons: Record<string, any> = {
-  languages: Languages,
-  'exam-prep': GraduationCap,
-  mechanics: Wrench,
-  bakery: Cake,
-  salon: Scissors,
-  'ai-skills': Brain,
-  'national-exams': Award,
+function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: string }) {
+  const [displayed, setDisplayed] = useState('0')
+  const ref = useRef<HTMLDivElement>(null)
+  const hasAnimated = useRef(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated.current) {
+          hasAnimated.current = true
+          const num = parseInt(value.replace(/[^0-9]/g, ''))
+          if (!isNaN(num)) {
+            let current = 0
+            const step = Math.max(1, Math.floor(num / 40))
+            const timer = setInterval(() => {
+              current += step
+              if (current >= num) {
+                setDisplayed(value)
+                clearInterval(timer)
+              } else {
+                setDisplayed(current + suffix)
+              }
+            }, 25)
+          } else {
+            setDisplayed(value)
+          }
+        }
+      },
+      { threshold: 0.3 }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [value, suffix])
+
+  return <div ref={ref} className="text-3xl lg:text-4xl font-extrabold">{displayed}</div>
 }
 
-const categoryColors: Record<string, string> = {
-  languages: 'from-blue-500 to-blue-600',
-  'exam-prep': 'from-purple-500 to-purple-600',
-  mechanics: 'from-red-500 to-red-600',
-  bakery: 'from-orange-500 to-orange-600',
-  salon: 'from-pink-500 to-pink-600',
-  'ai-skills': 'from-emerald-500 to-emerald-600',
-  'national-exams': 'from-amber-500 to-amber-600',
+function TypewriterText({ text, gradient = '' }: { text: string; gradient?: string }) {
+  const [displayed, setDisplayed] = useState('')
+
+  useEffect(() => {
+    let i = 0
+    let timer: ReturnType<typeof setInterval>
+    const tick = () => {
+      i++
+      setDisplayed(text.slice(0, i))
+      if (i >= text.length) {
+        clearInterval(timer)
+        setTimeout(() => {
+          i = 0
+          setDisplayed('')
+          timer = setInterval(tick, 40)
+        }, 2000)
+      }
+    }
+    timer = setInterval(tick, 40)
+    return () => clearInterval(timer)
+  }, [text])
+
+  if (!displayed) return <span className="invisible">{text}</span>
+  return <span className={gradient}>{displayed}</span>
+}
+
+function ScrollReveal({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-700 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} ${className}`}
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function Home() {
+  const { t } = useTranslation()
   const { user } = useAuth()
-  const { data: categories } = trpc.category.list.useQuery()
   const { data: courses } = trpc.course.list.useQuery({ featured: true })
-  const { data: testimonials } = trpc.testimonial.featured.useQuery()
   const { data: dashboardStats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })
   const { data: leaderboard } = trpc.leaderboard.list.useQuery({ limit: 5 }, { enabled: true })
 
+  const categoryDisplay = [
+    { icon: Languages, title: t('categories.languages'), description: t('categories.langDesc'), color: 'from-blue-500 to-cyan-500' },
+    { icon: GraduationCap, title: t('categories.testPrep'), description: t('categories.testPrepDesc'), color: 'from-emerald-500 to-teal-500' },
+    { icon: Cake, title: t('categories.bakery'), description: t('categories.bakeryDesc'), color: 'from-amber-500 to-orange-500' },
+    { icon: Scissors, title: t('categories.salon'), description: t('categories.salonDesc'), color: 'from-pink-500 to-rose-500' },
+    { icon: Wrench, title: t('categories.mechanics'), description: t('categories.mechanicsDesc'), color: 'from-slate-600 to-slate-800' },
+    { icon: Brain, title: t('categories.aiSkills'), description: t('categories.aiSkillsDesc'), color: 'from-purple-500 to-indigo-500' },
+    { icon: Award, title: t('categories.privateCandidates'), description: t('categories.privateCandidatesDesc'), color: 'from-red-500 to-rose-600' },
+  ]
+
+  const whyChooseUs = [
+    { icon: CheckCircle2, text: t('whyChooseUs.points.0') },
+    { icon: CheckCircle2, text: t('whyChooseUs.points.1') },
+    { icon: CheckCircle2, text: t('whyChooseUs.points.2') },
+    { icon: CheckCircle2, text: t('whyChooseUs.points.3') },
+    { icon: CheckCircle2, text: t('whyChooseUs.points.4') },
+  ]
+
+  const exercises = [
+    { title: 'French Greetings Quiz', points: 10, icon: Languages, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { title: 'TOEFL Reading Strategy', points: 20, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { title: 'AI in Education Quiz', points: 10, icon: Brain, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { title: 'Engine Basics Quiz', points: 20, icon: Wrench, color: 'text-amber-600', bg: 'bg-amber-50' },
+  ]
+
+  useEffect(() => {
+    const wrapper = document.getElementById('heroImage')
+    if (!wrapper) return
+    const image = wrapper.querySelector('.hero-image') as HTMLElement | null
+    if (!image) return
+
+    const onMove = (e: MouseEvent) => {
+      const rect = wrapper.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      const centerX = rect.width / 2
+      const centerY = rect.height / 2
+      const rotateX = ((y - centerY) / centerY) * -5
+      const rotateY = ((x - centerX) / centerX) * 5
+      image.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`
+    }
+
+    const onLeave = () => {
+      image.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) scale(1)'
+    }
+
+    wrapper.addEventListener('mousemove', onMove)
+    wrapper.addEventListener('mouseleave', onLeave)
+    return () => {
+      wrapper.removeEventListener('mousemove', onMove)
+      wrapper.removeEventListener('mouseleave', onLeave)
+    }
+  }, [])
+
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 text-white pt-16">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=1920')] bg-cover bg-center opacity-10" />
-        <div className="relative max-w-7xl mx-auto px-4 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+    <div>
+      {/* ───── Hero ───── */}
+      <section className="relative bg-brand-950 overflow-hidden">
+        <div className="absolute inset-0">
+          <img src="/hero-bg.jpg" alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-brand-950/80" />
+        </div>
+        <div className="absolute inset-0 opacity-10 mix-blend-overlay">
+          <svg viewBox="0 0 1200 800" className="w-full h-full">
+            <defs>
+              <linearGradient id="hero-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#3b82f6" />
+                <stop offset="50%" stopColor="#6366f1" />
+                <stop offset="100%" stopColor="#4f46e5" />
+              </linearGradient>
+            </defs>
+            {[
+              { cx: 200, cy: 300 }, { cx: 500, cy: 200 }, { cx: 800, cy: 350 },
+              { cx: 300, cy: 500 }, { cx: 600, cy: 600 }, { cx: 900, cy: 500 },
+              { cx: 400, cy: 400 }, { cx: 700, cy: 250 }, { cx: 1000, cy: 450 },
+            ].map((p, i) => (
+              <g key={i}>
+                <circle cx={p.cx} cy={p.cy} r="4" fill="url(#hero-grad)" className="animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+                {[200, 400, 600, 800].map((_, j) => {
+                  const target = [{ cx: 200, cy: 300 }, { cx: 500, cy: 200 }, { cx: 800, cy: 350 }, { cx: 300, cy: 500 }, { cx: 600, cy: 600 }, { cx: 900, cy: 500 }, { cx: 400, cy: 400 }, { cx: 700, cy: 250 }, { cx: 1000, cy: 450 }][(i + j + 1) % 9]
+                  return (
+                    <line
+                      key={j}
+                      x1={p.cx} y1={p.cy} x2={target.cx} y2={target.cy}
+                      stroke="url(#hero-grad)" strokeWidth="0.5"
+                      className="animate-pulse"
+                      style={{ animationDelay: `${(i + j) * 0.2}s`, opacity: 0.3 }}
+                    />
+                  )
+                })}
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20 lg:py-28">
+          <div className="grid lg:grid-cols-2 gap-8 md:gap-16 items-center">
             <div>
-              <Badge className="mb-4 bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30">
-                <Sparkles className="w-3 h-3 mr-1" /> AI-Powered Learning Platform
+              <Badge className="mb-4 md:mb-5 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 text-blue-400 border-blue-500/20 hover:from-blue-500/30 hover:to-indigo-500/30 animate-bounce text-xs md:text-sm">
+                {t('hero.badge')}
               </Badge>
-              <h1 className="text-4xl lg:text-6xl font-extrabold leading-tight mb-6">
-                Your Journey to{' '}
-                <span className="bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-                  Mastery
-                </span>{' '}
-                Starts Here
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight mb-3 md:mb-4 min-h-[2.5em] md:min-h-[3em]">
+                <TypewriterText text={t('hero.title')} gradient="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent" />
               </h1>
-              <p className="text-lg text-slate-300 mb-8 max-w-xl">
-                Learn languages, technical skills, and AI tools with personalized AI tutoring, daily exercises, and expert-led courses. Join thousands of successful learners.
+              <p className="text-sm sm:text-base md:text-lg text-slate-400 leading-relaxed mb-6 md:mb-8 max-w-lg mt-4 md:mt-6">
+                {t('hero.subtitle')}
               </p>
-              <div className="flex flex-wrap gap-4">
-                <Link to={user ? '/courses' : '/login'}>
-                  <Button size="lg" className="bg-gradient-to-r from-blue-600 to-emerald-500 hover:opacity-90 text-white px-8">
-                    {user ? 'Continue Learning' : 'Get Started Free'}
+              <div className="flex flex-wrap gap-3 md:gap-4">
+                <Link to={user ? '/courses' : '/register'} className="w-full sm:w-auto">
+                  <Button size="lg" className="rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-500 hover:via-indigo-500 hover:to-indigo-600 text-white px-6 md:px-8 h-10 md:h-12 text-sm md:text-base w-full sm:w-auto shadow-lg shadow-blue-600/25">
+                    {user ? t('hero.startLearning') : t('hero.exploreCourses')}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </Link>
-                <Link to="/ai-tutor">
-                  <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10">
-                    <Brain className="mr-2 h-4 w-4" /> Try PI Assistant
-                  </Button>
-                </Link>
               </div>
             </div>
-            <div className="hidden lg:grid grid-cols-2 gap-4">
-              <Card className="bg-white/10 backdrop-blur border-white/10">
-                <CardContent className="p-6 text-center">
-                  <BookOpen className="h-8 w-8 text-blue-400 mx-auto mb-2" />
-                  <div className="text-3xl font-bold">7+</div>
-                  <div className="text-sm text-slate-300">Disciplines</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 backdrop-blur border-white/10">
-                <CardContent className="p-6 text-center">
-                  <Users className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-                  <div className="text-3xl font-bold">15K+</div>
-                  <div className="text-sm text-slate-300">Students</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 backdrop-blur border-white/10">
-                <CardContent className="p-6 text-center">
-                  <Trophy className="h-8 w-8 text-amber-400 mx-auto mb-2" />
-                  <div className="text-3xl font-bold">50K+</div>
-                  <div className="text-sm text-slate-300">Exercises Done</div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white/10 backdrop-blur border-white/10">
-                <CardContent className="p-6 text-center">
-                  <Star className="h-8 w-8 text-purple-400 mx-auto mb-2" />
-                  <div className="text-3xl font-bold">4.8</div>
-                  <div className="text-sm text-slate-300">Avg Rating</div>
-                </CardContent>
-              </Card>
+
+            <div className="hidden lg:block hero-image-wrapper" id="heroImage">
+              <div className="hero-image-glow" />
+              <div className="hero-image-glass" />
+              <img src="/leftside.webp" alt="" className="hero-image" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Disciplines Section */}
-      <section className="py-16 max-w-7xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">Explore Our Disciplines</h2>
-          <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-            From languages to technical skills, we offer comprehensive courses designed to make you job-market ready.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-          {categories?.map(cat => {
-            const Icon = categoryIcons[cat.slug] ?? BookOpen
-            const color = categoryColors[cat.slug] ?? 'from-blue-500 to-blue-600'
-            return (
-              <Link key={cat.id} to={`/courses?category=${cat.slug}`} className="group">
-                <Card className="hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 cursor-pointer h-full">
-                  <CardContent className="p-4 text-center">
-                    <div className={`w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center`}>
-                      <Icon className="h-6 w-6 text-white" />
-                    </div>
-                    <h3 className="font-semibold text-sm">{cat.name}</h3>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Featured Courses */}
-      <section className="py-16 bg-slate-50 dark:bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-bold">Featured Courses</h2>
-              <p className="text-slate-600 dark:text-slate-400 mt-1">Hand-picked courses from our expert instructors</p>
-            </div>
-            <Link to="/courses">
-              <Button variant="outline">View All <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </Link>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses?.slice(0, 6).map(course => (
-              <Link key={course.id} to={`/courses/${course.slug}`}>
-                <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer h-full flex flex-col">
-                  <div className="relative h-48 overflow-hidden">
-                    <img src={course.thumbnail ?? ''} alt={course.title} className="w-full h-full object-cover" />
-                    <div className="absolute top-3 right-3">
-                      <Badge className="bg-white/90 text-slate-900">{course.level}</Badge>
-                    </div>
-                    {Number(course.price) === 0 && (
-                      <div className="absolute top-3 left-3">
-                        <Badge className="bg-emerald-500 text-white">Free</Badge>
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-4 flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline" className="text-xs">{course.categoryName}</Badge>
-                      <div className="flex items-center text-amber-500 text-xs">
-                        <Star className="h-3 w-3 fill-current" />
-                        <span className="ml-1">{course.rating}</span>
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2">{course.title}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 line-clamp-2 flex-1">{course.shortDescription}</p>
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-3 text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {course.duration}m</span>
-                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {course.totalStudents}</span>
-                      </div>
-                      <span className="font-bold text-blue-600">
-                        {Number(course.price) === 0 ? 'Free' : `$${course.price}`}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+      {/* ───── Stats Counter Bar ───── */}
+      <section className="py-10 md:py-16 bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
+            <ScrollReveal>
+              <div className="text-center text-white">
+                <AnimatedCounter value="15" suffix="K+" />
+                <p className="text-blue-200 mt-1 text-sm font-medium">Active Students</p>
+              </div>
+            </ScrollReveal>
+            <ScrollReveal>
+              <div className="text-center text-white">
+                <AnimatedCounter value="100" suffix="+" />
+                <p className="text-blue-200 mt-1 text-sm font-medium">Expert Courses</p>
+              </div>
+            </ScrollReveal>
+            <ScrollReveal>
+              <div className="text-center text-white">
+                <AnimatedCounter value="50" suffix="K+" />
+                <p className="text-blue-200 mt-1 text-sm font-medium">Exercises Completed</p>
+              </div>
+            </ScrollReveal>
+            <ScrollReveal>
+              <div className="text-center text-white">
+                <div className="text-3xl lg:text-4xl font-extrabold">4.9/5</div>
+                <p className="text-blue-200 mt-1 text-sm font-medium">Average Rating</p>
+              </div>
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
-      {/* PI Assistant Section */}
-      <section className="py-16 max-w-7xl mx-auto px-4">
-        <div className="bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl overflow-hidden">
-          <div className="grid lg:grid-cols-2 gap-8 p-8 lg:p-12 items-center">
-            <div className="text-white">
-              <div className="flex items-center gap-2 mb-4">
-                <Brain className="h-6 w-6" />
-                <span className="font-semibold text-blue-200">PI ASSISTANT</span>
-              </div>
-              <h2 className="text-3xl font-bold mb-4">Your Personal AI Tutor</h2>
-              <p className="text-blue-100 mb-6 text-lg">
-                Get instant help, personalized explanations, and daily practice exercises tailored to your learning goals. Our AI adapts to your level and pace.
-              </p>
-              <div className="space-y-3 mb-8">
-                {['24/7 instant answers', 'Personalized learning paths', 'Daily exercises & challenges', 'Progress tracking & insights'].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-yellow-300" />
-                    <span className="text-sm">{feature}</span>
-                  </div>
-                ))}
-              </div>
-              <Link to="/ai-tutor">
-                <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50">
-                  <Brain className="mr-2 h-4 w-4" /> Chat with PI Assistant
-                </Button>
-              </Link>
+      {/* ───── What You Can Learn ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-2xl md:text-3xl font-bold text-brand-950 mb-3">{t('categories.whatYouCanLearn')}</h2>
+              <p className="text-sm md:text-base text-slate-500 max-w-xl mx-auto">Practical skills designed to transform your career and future.</p>
             </div>
-            <div className="hidden lg:block">
-              <div className="bg-white/10 backdrop-blur rounded-xl p-6 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <Brain className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="bg-white/20 rounded-lg p-3 text-sm text-white">
-                    Hi! I'm your PI Assistant. How can I help you today? I can explain concepts, create exercises, or guide you through your courses.
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 justify-end">
-                  <div className="bg-white rounded-lg p-3 text-sm text-slate-700">
-                    Help me understand French verb conjugations
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                    <Brain className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="bg-white/20 rounded-lg p-3 text-sm text-white">
-                    Great question! In French, verbs are conjugated based on the subject. For regular -er verbs like "parler": Je parle, Tu parles, Il/Elle parle, Nous parlons, Vous parlez, Ils/Elles parlent. Let's practice with some exercises!
-                  </div>
-                </div>
-              </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {categoryDisplay.map((cat, i) => {
+                const Icon = cat.icon
+                return (
+                  <Card key={i} className="card-hover border-slate-200/80 group overflow-hidden">
+                    <div className={`h-1.5 bg-gradient-to-r ${cat.color}`} />
+                    <CardContent className="p-4 md:p-6">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 mb-3 md:mb-4 rounded-xl bg-gradient-to-br ${cat.color} flex items-center justify-center`}>
+                        <Icon className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-base md:text-lg text-brand-950 mb-1 md:mb-2">{cat.title}</h3>
+                      <p className="text-slate-500 text-xs md:text-sm leading-relaxed">{cat.description}</p>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
 
-      {/* Daily Exercises CTA */}
-      <section className="py-16 bg-slate-50 dark:bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <Badge className="mb-4 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                <Target className="w-3 h-3 mr-1" /> Daily Practice
-              </Badge>
-              <h2 className="text-3xl font-bold mb-4">Daily Exercises to Keep You Sharp</h2>
-              <p className="text-slate-600 dark:text-slate-400 mb-6 text-lg">
-                Complete daily exercises to maintain your streak, earn points, and climb the leaderboard. Consistency is the key to mastery.
-              </p>
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div className="text-center p-4 bg-white dark:bg-slate-800 rounded-xl">
-                  <Trophy className="h-6 w-6 text-amber-500 mx-auto mb-2" />
-                  <div className="font-bold text-xl">{dashboardStats?.exercisesCompleted ?? 0}</div>
-                  <div className="text-xs text-slate-500">Completed</div>
-                </div>
-                <div className="text-center p-4 bg-white dark:bg-slate-800 rounded-xl">
-                  <Target className="h-6 w-6 text-emerald-500 mx-auto mb-2" />
-                  <div className="font-bold text-xl">{dashboardStats?.accuracy ?? 0}%</div>
-                  <div className="text-xs text-slate-500">Accuracy</div>
-                </div>
-                <div className="text-center p-4 bg-white dark:bg-slate-800 rounded-xl">
-                  <Zap className="h-6 w-6 text-blue-500 mx-auto mb-2" />
-                  <div className="font-bold text-xl">{dashboardStats?.totalPoints ?? 0}</div>
-                  <div className="text-xs text-slate-500">Points</div>
-                </div>
-              </div>
-              <Link to="/exercises">
-                <Button size="lg" className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
-                  <GraduationCap className="mr-2 h-4 w-4" /> Start Daily Exercises
-                </Button>
-              </Link>
+      {/* ───── Why Choose Us ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20 bg-slate-50/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-2xl md:text-3xl font-bold text-brand-950 mb-3">{t('whyChooseUs.title')}</h2>
+              <p className="text-sm md:text-base text-slate-500 max-w-xl mx-auto">We're committed to your success.</p>
             </div>
-            <div className="space-y-4">
-              {[
-                { title: 'French Greetings Quiz', points: 10, difficulty: 'Easy' as const, icon: Languages },
-                { title: 'TOEFL Reading Strategy', points: 20, difficulty: 'Medium' as const, icon: BookOpen },
-                { title: 'AI in Education', points: 10, difficulty: 'Easy' as const, icon: Brain },
-                { title: 'Engine Basics', points: 20, difficulty: 'Medium' as const, icon: Wrench },
-              ].map((ex, i) => (
-                <Card key={i} className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <ex.icon className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium">{ex.title}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {ex.difficulty === 'Easy' ? 'Easy' : 'Medium'}
-                        </Badge>
-                        <span className="text-xs text-slate-500">{ex.points} points</span>
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-slate-400" />
-                  </CardContent>
-                </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 max-w-4xl mx-auto">
+              {whyChooseUs.map((item, i) => (
+                <div key={i} className="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200/80 card-hover">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center flex-shrink-0">
+                    <item.icon className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <span className="font-medium text-brand-950 text-sm">{item.text}</span>
+                </div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
 
-      {/* Leaderboard Preview */}
-      <section className="py-16 max-w-7xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold mb-2">Top Learners</h2>
-          <p className="text-slate-600 dark:text-slate-400">See who's leading the pack this week</p>
-        </div>
-        <div className="max-w-2xl mx-auto">
-          {leaderboard?.slice(0, 5).map((entry, i) => (
-            <div key={entry.id} className={`flex items-center gap-4 p-4 mb-3 rounded-xl ${i === 0 ? 'bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/10 border border-amber-200' : 'bg-white dark:bg-slate-800'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-500 text-white' : i === 1 ? 'bg-slate-400 text-white' : i === 2 ? 'bg-orange-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                {i + 1}
+      {/* ───── Featured Courses ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between mb-6 md:mb-10">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-brand-950">{t('featuredCourses.title')}</h2>
               </div>
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold">
-                {entry.userName?.charAt(0) ?? 'U'}
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">{entry.userName ?? 'Anonymous'}</div>
-                <div className="text-xs text-slate-500">{entry.exercisesCompleted} exercises</div>
-              </div>
-              <div className="text-right">
-                <div className="font-bold text-blue-600">{entry.totalPoints} pts</div>
-                <div className="text-xs text-slate-500">{entry.studyHours}h studied</div>
-              </div>
+              <Link to="/courses">
+                <Button variant="outline" className="hidden sm:flex rounded-full">
+                  {t('featuredCourses.viewAll')} <ChevronRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
             </div>
-          ))}
-          <div className="text-center mt-6">
-            <Link to="/leaderboard">
-              <Button variant="outline">View Full Leaderboard <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </Link>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+              {courses?.slice(0, 6).map((course: any) => (
+                <Link key={course.id} to={`/courses/${course.slug}`} className="group">
+                  <Card className="card-hover border-slate-200/80 h-full flex flex-col">
+                    <div className="relative h-40 md:h-48 overflow-hidden rounded-t-xl bg-slate-100">
+                      <img src={course.thumbnail ?? ''} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      <div className="absolute top-3 right-3">
+                        <Badge className="bg-white/95 text-slate-800 border-0 shadow-xs capitalize text-xs font-medium rounded-full">{course.level}</Badge>
+                      </div>
+                      {Number(course.price) === 0 && (
+                        <div className="absolute top-3 left-3">
+                          <Badge className="bg-emerald-500 text-white border-0 text-xs font-medium rounded-full">Free</Badge>
+                        </div>
+                      )}
+                    </div>
+                    <CardContent className="p-4 md:p-5 flex-1 flex flex-col">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className="text-xs font-normal text-slate-500 rounded-full">{t(`categories.${course.categorySlug}`, { defaultValue: course.categoryName })}</Badge>
+                        <div className="flex items-center text-amber-500 text-xs gap-0.5">
+                          <Star className="h-3 w-3 fill-current" />
+                          <span>{course.rating}</span>
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-brand-950 mb-1 md:mb-2 line-clamp-2 leading-snug text-sm md:text-base">{t(`courseTitles.${course.slug}`, { defaultValue: course.title })}</h3>
+                      <p className="text-xs md:text-sm text-slate-500 mb-3 md:mb-4 line-clamp-2 flex-1 leading-relaxed">{t(`courseDescs.${course.slug}`, { defaultValue: course.shortDescription })}</p>
+                      <div className="flex items-center justify-between pt-3 md:pt-4 border-t border-slate-100">
+                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {course.duration}m</span>
+                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {course.totalStudents}</span>
+                        </div>
+                        <span className="font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent text-sm">
+                          {Number(course.price) === 0 ? 'Free' : `$${course.price}`}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-8 text-center sm:hidden">
+              <Link to="/courses">
+                <Button variant="outline" className="rounded-full">{t('featuredCourses.viewAll')}</Button>
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
 
-      {/* Testimonials */}
-      <section className="py-16 bg-slate-50 dark:bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">What Our Students Say</h2>
-            <p className="text-slate-600 dark:text-slate-400">Real stories from real learners</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {testimonials?.slice(0, 6).map(t => (
-              <Card key={t.id} className="h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-1 mb-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star key={i} className={`h-4 w-4 ${i < (t.rating ?? 5) ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} />
+      {/* ───── AI Tutor Section ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20 bg-slate-50/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800 rounded-2xl md:rounded-3xl overflow-hidden shadow-elevated">
+              <div className="grid lg:grid-cols-2 gap-6 md:gap-8 p-6 md:p-8 lg:p-12 items-center">
+                <div className="text-white">
+                  <Badge className="mb-3 md:mb-4 bg-white/10 text-blue-200 border-white/20 hover:bg-white/20 rounded-full text-xs md:text-sm">
+                    <Brain className="w-3 h-3 mr-1.5" /> {t('aiTutor.badge')}
+                  </Badge>
+                  <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4 leading-tight">{t('aiTutor.title')}</h2>
+                  <p className="text-blue-200 mb-6 md:mb-8 text-sm md:text-lg leading-relaxed">
+                    {t('aiTutor.description')}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 md:gap-x-6 gap-y-2 md:gap-y-3 mb-6 md:mb-8">
+                    {[
+                      'Instant answers to any question',
+                      'Personalized learning paths',
+                      'Daily adaptive exercises',
+                      'Progress insights & tips',
+                    ].map((f, i) => (
+                      <div key={i} className="flex items-center gap-2.5 text-sm text-blue-100">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-300" />
+                        {f}
+                      </div>
                     ))}
                   </div>
-                  <p className="text-slate-600 dark:text-slate-400 mb-4 text-sm leading-relaxed">"{t.content}"</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-emerald-400 flex items-center justify-center text-white font-bold">
-                      {t.name.charAt(0)}
+                  <Link to="/ai-tutor" className="block sm:inline">
+                    <Button size="lg" className="rounded-full bg-white text-blue-700 hover:bg-blue-50 h-10 md:h-12 px-6 md:px-8 text-sm md:text-base w-full sm:w-auto shadow-lg">
+                      <Brain className="mr-2 h-4 w-4" /> {t('aiTutor.cta')}
+                    </Button>
+                  </Link>
+                </div>
+                <div className="hidden lg:block">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Brain className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="bg-white/15 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-white/90 leading-relaxed">
+                        Hi! I'm your PI Assistant. I can explain concepts, create practice exercises, or guide you through any course. What would you like help with?
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium text-sm">{t.name}</div>
-                      <div className="text-xs text-slate-500">{t.role}</div>
+                    <div className="flex items-start gap-3 justify-end">
+                      <div className="bg-white rounded-2xl rounded-br-sm px-4 py-3 text-sm text-slate-700 shadow-sm">
+                        Help me understand French verb conjugations
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Brain className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="bg-white/15 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-white/90 leading-relaxed">
+                        Great question! French verbs change based on who's doing the action. For regular -er verbs like "parler" (to speak): <span className="font-medium">Je parle, Tu parles, Il/Elle parle, Nous parlons, Vous parlez, Ils/Elles parlent</span>. Let's practice!
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
 
-      {/* CTA Section */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold mb-6">Ready to Start Learning?</h2>
-          <p className="text-lg text-slate-600 dark:text-slate-400 mb-8 max-w-2xl mx-auto">
-            Join thousands of students already learning on Pacemaker Institute. Your personalized AI tutor, daily exercises, and expert courses are waiting.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Link to={user ? '/courses' : '/login'}>
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-emerald-500 text-white hover:opacity-90 px-8">
-                {user ? 'Browse Courses' : 'Create Free Account'}
-                <TrendingUp className="ml-2 h-4 w-4" />
-              </Button>
-            </Link>
-            <Link to="/subscription">
-              <Button size="lg" variant="outline">
-                View Pricing
-              </Button>
-            </Link>
+      {/* ───── Daily Exercises ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
+              <div>
+                <Badge className="mb-3 md:mb-4 bg-emerald-50 text-emerald-700 border-emerald-200 rounded-full text-xs md:text-sm">
+                  <Target className="w-3 h-3 mr-1.5" /> {t('exercises.title')}
+                </Badge>
+                <h2 className="text-2xl md:text-3xl font-bold text-brand-950 mb-3 md:mb-4">{t('exercises.title')}</h2>
+                <p className="text-sm md:text-lg text-slate-500 mb-6 md:mb-8 leading-relaxed">
+                  {t('exercises.description')}
+                </p>
+                <div className="flex gap-4 md:gap-6 mb-6 md:mb-8">
+                  <div className="text-center">
+                    <div className="text-xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{dashboardStats?.exercisesCompleted ?? 0}</div>
+                    <div className="text-xs text-slate-500 mt-1">Completed</div>
+                  </div>
+                  <div className="w-px bg-slate-200" />
+                  <div className="text-center">
+                    <div className="text-xl md:text-3xl font-bold text-emerald-600">{dashboardStats?.accuracy ?? 0}%</div>
+                    <div className="text-xs text-slate-500 mt-1">Accuracy</div>
+                  </div>
+                  <div className="w-px bg-slate-200" />
+                  <div className="text-center">
+                    <div className="text-xl md:text-3xl font-bold text-amber-600">{dashboardStats?.totalPoints ?? 0}</div>
+                    <div className="text-xs text-slate-500 mt-1">Points</div>
+                  </div>
+                </div>
+                <Link to="/exercises" className="block sm:inline">
+                  <Button size="lg" className="rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 hover:from-blue-500 hover:via-indigo-500 hover:to-indigo-600 text-white h-10 md:h-12 px-6 md:px-8 text-sm md:text-base w-full sm:w-auto shadow-lg shadow-blue-600/20">
+                    <GraduationCap className="mr-2 h-4 w-4" /> {t('exercises.cta')}
+                  </Button>
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {exercises.map((ex, i) => (
+                  <div key={i} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200/80 card-hover cursor-pointer hover:border-blue-200/80 transition-colors">
+                    <div className={`w-10 h-10 rounded-lg ${ex.bg} flex items-center justify-center flex-shrink-0`}>
+                      <ex.icon className={`h-5 w-5 ${ex.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-brand-950 text-sm">{ex.title}</h4>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-xs text-slate-400">+{ex.points} points</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-300 flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </ScrollReveal>
+
+      {/* ───── Leaderboard ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20 bg-slate-50/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-6 md:mb-10">
+              <h2 className="text-2xl md:text-3xl font-bold text-brand-950 mb-2">{t('leaderboard.title')}</h2>
+            </div>
+            <div className="max-w-2xl mx-auto space-y-3">
+              {leaderboard?.slice(0, 5).map((entry: any, i: number) => (
+                <div key={entry.id} className={`flex items-center gap-4 p-4 rounded-xl ${
+                  i === 0
+                    ? 'bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/80'
+                    : 'bg-white border border-slate-200/80'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                    i === 0 ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>{i + 1}</div>
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                    {entry.userName?.charAt(0) ?? 'U'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-brand-950 text-sm truncate">{entry.userName ?? 'Anonymous'}</div>
+                    <div className="text-xs text-slate-400">{entry.exercisesCompleted} exercises</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent text-sm">{entry.totalPoints} pts</div>
+                    <div className="text-xs text-slate-400">{entry.studyHours}h studied</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center mt-6 md:mt-8">
+              <Link to="/leaderboard">
+                <Button variant="outline" className="rounded-full text-sm md:text-base h-9 md:h-10">{t('leaderboard.viewAll')} <ArrowRight className="ml-2 h-4 w-4" /></Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      </ScrollReveal>
+
+      {/* ───── Final CTA ───── */}
+      <ScrollReveal>
+        <section className="py-12 md:py-20 bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-800">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 md:mb-4">{t('finalCta.title')}</h2>
+            <p className="text-sm md:text-lg text-blue-200 mb-6 md:mb-8 leading-relaxed">
+              {t('finalCta.description')}
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4">
+              <Link to={user ? '/courses' : '/register'}>
+                <Button size="lg" className="rounded-full bg-white text-blue-700 hover:bg-blue-50 px-8 md:px-10 h-10 md:h-12 text-sm md:text-base w-full sm:w-auto shadow-lg">
+                  {t('finalCta.cta')}
+                  <TrendingUp className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      </ScrollReveal>
     </div>
   )
 }

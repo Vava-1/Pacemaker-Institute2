@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams } from 'react-router';
 import { trpc } from '@/providers/trpc';
 import { Button } from '@/components/ui/button';
@@ -131,7 +130,7 @@ export default function CertificateView() {
               </p>
               <p className="text-slate-500 italic text-base md:text-xl font-serif">has successfully completed the course</p>
               <p className="text-xl md:text-3xl font-medium text-slate-800 max-w-2xl mx-auto px-4">
-                {certificate.courseName || 'Course Name'}
+                {certificate.courseTitle || 'Course Name'}
               </p>
             </div>
 
@@ -141,17 +140,11 @@ export default function CertificateView() {
               <div className="flex flex-col items-center">
                 <div className="h-10 md:h-12 border-b-2 border-slate-400 w-full mb-2 flex items-end justify-center pb-1 px-2">
                   <span className="text-slate-700 font-serif text-sm md:text-lg">
-                    {certificate.issueDate 
-                      ? new Date(certificate.issueDate).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })
-                      : new Date().toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
+                    {new Date(certificate.issuedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
                   </span>
                 </div>
                 <span className="text-[10px] md:text-xs text-slate-500 uppercase tracking-widest">Issue Date</span>

@@ -8,20 +8,20 @@ import { CookieConsent } from '@/components/CookieConsent'
 export function AppLayout() {
   const { user } = useAuth()
   const location = useLocation()
-  const isAuthPage = location.pathname === '/login'
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/forgot-password' || location.pathname === '/reset-password' || location.pathname === '/verify-email'
   const isAdminPage = location.pathname === '/admin'
   const showSidebar = user && !isAuthPage && !isAdminPage
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <div className="flex">
+      <div className="flex pt-14 md:pt-16">
         {showSidebar && <Sidebar />}
-        <main className={`flex-1 min-h-[calc(100vh-4rem)] ${showSidebar ? 'ml-64' : ''}`}>
+        <main className={`flex-1 ${showSidebar ? 'lg:ml-64' : ''}`}>
           <Outlet />
         </main>
       </div>
-      {!isAuthPage && !isAdminPage && <Footer />}
+      {!isAuthPage && <Footer />}
       <CookieConsent />
     </div>
   )

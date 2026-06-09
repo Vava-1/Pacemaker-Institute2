@@ -67,7 +67,7 @@ export default function ResetPassword() {
 
     resetPasswordMutation.mutate({
       token,
-      newPassword: data.password,
+      password: data.password,
     })
   }
 

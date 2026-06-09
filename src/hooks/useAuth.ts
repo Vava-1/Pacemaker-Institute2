@@ -1,4 +1,4 @@
-import { trpc } from "@/providers/trpc";
+import { trpc, clearAuthToken } from "@/providers/trpc";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { LOGIN_PATH } from "@/const";
@@ -26,14 +26,11 @@ export function useAuth(options?: UseAuthOptions) {
     retry: false,
   });
 
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: async () => {
-      await utils.invalidate();
-      navigate(redirectPath);
-    },
-  });
-
-  const logout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+  const logout = useCallback(() => {
+    clearAuthToken();
+    utils.invalidate();
+    navigate(redirectPath);
+  }, [utils, navigate, redirectPath]);
 
   useEffect(() => {
     if (redirectOnUnauthenticated && !isLoading && !user) {
@@ -48,11 +45,11 @@ export function useAuth(options?: UseAuthOptions) {
     () => ({
       user: user ?? null,
       isAuthenticated: !!user,
-      isLoading: isLoading || logoutMutation.isPending,
+      isLoading,
       error,
       logout,
       refresh: refetch,
     }),
-    [user, isLoading, logoutMutation.isPending, error, logout, refetch],
+    [user, isLoading, error, logout, refetch],
   );
 }

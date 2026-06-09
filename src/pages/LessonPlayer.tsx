@@ -6,12 +6,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ArrowLeft, Play, CheckCircle, Menu, X, ChevronRight, Lock } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAuth } from '@/hooks/useAuth'
-
+import { useTranslation } from 'react-i18next'
 export default function LessonPlayer() {
   const { slug, lessonId } = useParams<{ slug: string; lessonId: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { t } = useTranslation()
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
@@ -22,10 +21,11 @@ export default function LessonPlayer() {
   )
 
   // Fetch lesson content
+  const lessonIdNum = lessonId ? Number(lessonId) : undefined
   const { data: lessonContent, isLoading: isLoadingLesson, error: lessonError } = trpc.lesson.getLessonContent.useQuery(
-    { lessonId: lessonId! },
+    { lessonId: lessonIdNum! },
     { 
-      enabled: !!lessonId,
+      enabled: !!lessonIdNum,
       retry: false
     }
   )
@@ -41,13 +41,13 @@ export default function LessonPlayer() {
   })
 
   // Finding next lesson logic
-  let nextLessonId: string | null = null
+  let nextLessonId: number | null = null
   let currentLessonInfo: any = null
   if (course && course.modules) {
     const allLessons = course.modules.flatMap((m: any) => 
       course.lessons?.filter((l: any) => l.moduleId === m.id) || []
     )
-    const currentIndex = allLessons.findIndex((l: any) => l.id === lessonId)
+    const currentIndex = allLessons.findIndex((l: any) => l.id === lessonIdNum)
     if (currentIndex !== -1) {
       currentLessonInfo = allLessons[currentIndex]
       if (currentIndex < allLessons.length - 1) {
@@ -63,8 +63,8 @@ export default function LessonPlayer() {
   }
 
   const handleMarkComplete = () => {
-    if (lessonId) {
-      markCompleted.mutate({ lessonId })
+    if (lessonIdNum) {
+      markCompleted.mutate({ lessonId: lessonIdNum })
     }
   }
 
@@ -113,7 +113,7 @@ export default function LessonPlayer() {
         } flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden relative z-10 flex flex-col`}
       >
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="font-semibold text-sm line-clamp-2">{course.title}</h2>
+          <h2 className="font-semibold text-sm line-clamp-2">{t(`courseTitles.${course.slug}`, { defaultValue: course.title })}</h2>
           <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(false)} className="lg:hidden">
             <X className="h-4 w-4" />
           </Button>
@@ -252,12 +252,12 @@ export default function LessonPlayer() {
                   </div>
                 </div>
                 
-                {lessonContent.content && (
+                {lessonContent.contentText && (
                   <Card>
                     <CardContent className="p-6">
                       <div 
                         className="prose dark:prose-invert max-w-none"
-                        dangerouslySetInnerHTML={{ __html: lessonContent.content }}
+                        dangerouslySetInnerHTML={{ __html: lessonContent.contentText }}
                       />
                     </CardContent>
                   </Card>

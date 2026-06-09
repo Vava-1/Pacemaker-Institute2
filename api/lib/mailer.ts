@@ -142,6 +142,19 @@ export async function sendVerificationEmail(to: string, name: string, verificati
   return sendEmail({ to, subject: "Verify your email address", html });
 }
 
+export async function sendOtpEmail(to: string, name: string, otp: string): Promise<EmailResult> {
+  const html = getEmailTemplate(`
+    <h2 style="color: #1f2937;">Your OTP Code</h2>
+    <p style="color: #6b7280; line-height: 1.6;">Hi ${name},</p>
+    <p style="color: #6b7280; line-height: 1.6;">Use the following code to verify your email address. This code will expire in 10 minutes.</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; font-size: 36px; letter-spacing: 8px; font-weight: bold; color: #1f2937; font-family: monospace;">${otp}</div>
+    </div>
+    <p style="color: #9ca3af; font-size: 14px;">If you didn't request this code, you can safely ignore this email.</p>
+  `);
+  return sendEmail({ to, subject: "Your OTP Code", html });
+}
+
 export async function sendEnrollmentConfirmationEmail(to: string, name: string, courseName: string, courseUrl: string): Promise<EmailResult> {
   const html = getEmailTemplate(`
     <h2 style="color: #1f2937;">Enrollment Confirmed!</h2>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ const mockClasses = [
 
 export default function LiveClasses() {
   const { user } = useAuth()
+  const { t } = useTranslation()
   const [tab, setTab] = useState('upcoming')
 
   const filteredClasses = mockClasses.filter(c => {
@@ -36,9 +38,9 @@ export default function LiveClasses() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'live': return <Badge className="bg-red-500 text-white animate-pulse"><Radio className="h-3 w-3 mr-1" /> LIVE</Badge>
-      case 'scheduled': return <Badge variant="outline"><Calendar className="h-3 w-3 mr-1" /> Upcoming</Badge>
-      case 'ended': return <Badge variant="secondary"><CheckCircle className="h-3 w-3 mr-1" /> Ended</Badge>
+      case 'live': return <Badge className="bg-red-500 text-white animate-pulse"><Radio className="h-3 w-3 mr-1" /> {t('liveClasses.liveBadge')}</Badge>
+      case 'scheduled': return <Badge variant="outline"><Calendar className="h-3 w-3 mr-1" /> {t('liveClasses.upcomingBadge')}</Badge>
+      case 'ended': return <Badge variant="secondary"><CheckCircle className="h-3 w-3 mr-1" /> {t('liveClasses.endedBadge')}</Badge>
       default: return null
     }
   }
@@ -46,15 +48,15 @@ export default function LiveClasses() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Live Classes</h1>
-        <p className="text-slate-500 dark:text-slate-400">Join real-time sessions with expert instructors</p>
+        <h1 className="text-3xl font-bold text-brand-950 mb-2">{t('liveClasses.title')}</h1>
+        <p className="text-slate-500">{t('liveClasses.description')}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-6">
         <TabsList>
-          <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
-          <TabsTrigger value="live">Live Now</TabsTrigger>
-          <TabsTrigger value="past">Past</TabsTrigger>
+          <TabsTrigger value="upcoming">{t('liveClasses.upcoming')}</TabsTrigger>
+          <TabsTrigger value="live">{t('liveClasses.liveNow')}</TabsTrigger>
+          <TabsTrigger value="past">{t('liveClasses.past')}</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -67,7 +69,7 @@ export default function LiveClasses() {
               {cls.status === 'live' && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Button size="lg" className="bg-red-600 hover:bg-red-700 text-white">
-                    <Play className="mr-2 h-5 w-5" /> Join Now
+                    <Play className="mr-2 h-5 w-5" /> {t('liveClasses.joinNow')}
                   </Button>
                 </div>
               )}
@@ -75,14 +77,14 @@ export default function LiveClasses() {
             <CardContent className="p-4">
               <Badge variant="outline" className="mb-2">{cls.category}</Badge>
               <h3 className="font-semibold text-lg mb-1">{cls.title}</h3>
-              <p className="text-sm text-slate-500 mb-3">by {cls.instructor}</p>
+              <p className="text-sm text-slate-500 mb-3">{t('liveClasses.byInstructor')} {cls.instructor}</p>
               <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
                 <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatTime(cls.scheduledAt)}</span>
-                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {cls.duration} min</span>
+                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {cls.duration} {t('liveClasses.min')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-slate-500 flex items-center gap-1">
-                  <Users className="h-3 w-3" /> {cls.students}/{cls.maxStudents} students
+                  <Users className="h-3 w-3" /> {cls.students}/{cls.maxStudents} {t('liveClasses.students')}
                 </span>
                 <div className="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(cls.students / cls.maxStudents) * 100}%` }} />
@@ -90,12 +92,12 @@ export default function LiveClasses() {
               </div>
               {cls.status === 'scheduled' && user && (
                 <Button className="w-full mt-3" variant="outline" size="sm">
-                  Book Class
+                  {t('liveClasses.bookClass')}
                 </Button>
               )}
               {cls.status === 'ended' && (
                 <Button className="w-full mt-3" variant="outline" size="sm">
-                  <Video className="mr-2 h-3 w-3" /> Watch Recording
+                  <Video className="mr-2 h-3 w-3" /> {t('liveClasses.watchRecording')}
                 </Button>
               )}
             </CardContent>
@@ -106,8 +108,8 @@ export default function LiveClasses() {
       {filteredClasses.length === 0 && (
         <div className="text-center py-16">
           <Video className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">No classes found</h3>
-          <p className="text-slate-500">Check back later for new live sessions</p>
+          <h3 className="text-lg font-medium mb-2">{t('liveClasses.noClasses')}</h3>
+          <p className="text-slate-500">{t('liveClasses.checkBack')}</p>
         </div>
       )}
     </div>

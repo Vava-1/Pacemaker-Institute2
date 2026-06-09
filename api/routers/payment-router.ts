@@ -2,9 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, and } from "drizzle-orm";
 import Stripe from "stripe";
-import { createRouter, publicProcedure, protectedProcedure } from "../router";
+import { createRouter, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, payments, enrollments } from "@db/schema";
+import { courses, enrollments } from "@db/schema";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
@@ -137,7 +137,7 @@ export const paymentRouter = createRouter({
       .where(eq(enrollments.userId, ctx.user.id))
       .leftJoin(courses, eq(enrollments.courseId, courses.id));
 
-    return history.map((h) => ({
+    return history.map((h: any) => ({
       id: h.enrollments.id,
       courseId: h.enrollments.courseId,
       courseTitle: h.courses?.title || "Unknown Course",

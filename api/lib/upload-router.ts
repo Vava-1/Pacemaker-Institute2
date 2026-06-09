@@ -17,7 +17,8 @@ const ALLOWED_MIME_TYPES = [
   "audio/ogg",
 ];
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_PROXY_SIZE = 100 * 1024 * 1024; // 100MB — proxy upload for small files
+const MAX_DIRECT_SIZE = 5 * 1024 * 1024 * 1024; // 5GB — direct upload for large files
 
 const MIME_TYPE_TO_RESOURCE_TYPE: Record<string, string> = {
   "image/jpeg": "image",
@@ -35,6 +36,7 @@ const MIME_TYPE_TO_RESOURCE_TYPE: Record<string, string> = {
 
 export const uploadRouter = new Hono();
 
+// Proxy upload — for smaller files, goes through our server
 uploadRouter.post("/", async (c) => {
   if (!env.cloudinaryUrl) {
     return c.json({ error: "Cloudinary is not configured" }, 503);
@@ -50,8 +52,8 @@ uploadRouter.post("/", async (c) => {
     return c.json({ error: "No file uploaded" }, 400);
   }
 
-  if (file.size > MAX_FILE_SIZE) {
-    return c.json({ error: "File exceeds maximum size of 50MB" }, 413);
+  if (file.size > MAX_PROXY_SIZE) {
+    return c.json({ error: "File too large. Use direct upload instead.", maxSize: MAX_PROXY_SIZE }, 413);
   }
 
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
@@ -87,7 +89,7 @@ uploadRouter.post("/", async (c) => {
       ).end(buffer);
     });
 
-    logger.info("File uploaded", { publicId: uploadResult.public_id, type: file.type });
+    logger.info("File uploaded via proxy", { publicId: uploadResult.public_id, type: file.type, size: file.size });
 
     return c.json({
       url: uploadResult.secure_url,
@@ -101,6 +103,38 @@ uploadRouter.post("/", async (c) => {
     logger.error("Upload failed", { error: err.message, filename: file.name });
     return c.json({ error: "File upload failed" }, 500);
   }
+});
+
+// Direct upload signature — browser uploads directly to Cloudinary (bypasses our server)
+// Supports files up to 5GB — suitable for long videos
+uploadRouter.get("/signature", async (c) => {
+  if (!env.cloudinaryUrl) {
+    return c.json({ error: "Cloudinary is not configured" }, 503);
+  }
+
+  const folder = c.req.query("folder") || "general";
+  const timestamp = Math.round(Date.now() / 1000);
+
+  cloudinary.config({ secure: true });
+
+  const params: Record<string, any> = {
+    timestamp,
+    folder: `pacemaker/${folder}`,
+    unique_filename: true,
+    overwrite: false,
+  };
+
+  // Generate signature
+  const signature = cloudinary.utils.api_sign_request(params, cloudinary.config().api_secret!);
+
+  return c.json({
+    cloudName: cloudinary.config().cloud_name,
+    apiKey: cloudinary.config().api_key,
+    signature,
+    timestamp,
+    folder: `pacemaker/${folder}`,
+    maxFileSize: MAX_DIRECT_SIZE,
+  });
 });
 
 uploadRouter.delete("/:publicId", async (c) => {

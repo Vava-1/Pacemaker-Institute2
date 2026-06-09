@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery } from "../middleware";
+import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { courses, modules, lessons, enrollments, categories } from "../../db/schema";
-import { eq, and, like, desc, sql } from "drizzle-orm";
+import { eq, and, like, desc, sql, inArray } from "drizzle-orm";
 
 export const courseRouter = createRouter({
   list: publicQuery
@@ -38,7 +38,16 @@ export const courseRouter = createRouter({
 
       const conditions = [];
       if (input?.categorySlug) {
-        conditions.push(eq(categories.slug, input.categorySlug));
+        const catRows = await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, input.categorySlug)).limit(1);
+        const catId = catRows[0]?.id;
+        if (catId) {
+          const childIds = (await db.select({ id: categories.id }).from(categories).where(eq(categories.parentId, catId))).map((c: any) => c.id);
+          if (childIds.length > 0) {
+            conditions.push(inArray(courses.categoryId, [...childIds, catId]));
+          } else {
+            conditions.push(eq(courses.categoryId, catId));
+          }
+        }
       }
       if (input?.level) {
         conditions.push(eq(courses.level, input.level as any));
@@ -115,20 +124,25 @@ export const courseRouter = createRouter({
         ));
 
       if (existing.length > 0) {
-        return { success: true, alreadyEnrolled: true };
+        return { success: true, alreadyEnrolled: true, paymentStatus: existing[0].paymentStatus };
       }
+
+      const course = (await db.select({ price: courses.price }).from(courses).where(eq(courses.id, input.courseId)).limit(1))[0];
+      const isFree = course && Number(course.price) === 0;
 
       await db.insert(enrollments).values({
         userId: ctx.user.id,
         courseId: input.courseId,
         progress: 0,
+        paymentStatus: isFree ? "paid" : "pending",
+        amount: course?.price ?? "0.00",
       });
 
       await db.update(courses)
         .set({ totalStudents: sql`${courses.totalStudents} + 1` })
         .where(eq(courses.id, input.courseId));
 
-      return { success: true, alreadyEnrolled: false };
+      return { success: true, alreadyEnrolled: false, paymentStatus: isFree ? "paid" : "pending" };
     }),
 
   myCourses: authedQuery.query(async ({ ctx }) => {
@@ -138,9 +152,11 @@ export const courseRouter = createRouter({
       title: courses.title,
       slug: courses.slug,
       thumbnail: courses.thumbnail,
+      price: courses.price,
       progress: enrollments.progress,
       isCompleted: enrollments.isCompleted,
       enrolledAt: enrollments.enrolledAt,
+      paymentStatus: enrollments.paymentStatus,
       categoryName: categories.name,
     }).from(enrollments)
       .innerJoin(courses, eq(enrollments.courseId, courses.id))

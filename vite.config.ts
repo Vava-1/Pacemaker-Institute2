@@ -37,7 +37,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom"],
+          vendor: ["react", "react-dom", "react-router"],
           ui: [
             "@radix-ui/react-dialog",
             "@radix-ui/react-dropdown-menu",
@@ -50,12 +50,6 @@ export default defineConfig({
       },
     },
     chunkSizeWarningLimit: 500,
-    minify: "terser",
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    minify: "esbuild",
   },
 });

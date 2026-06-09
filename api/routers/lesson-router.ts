@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "../middleware";
+import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, modules, lessons, enrollments, lessonProgress } from "@db/schema";
+import { lessons, enrollments, lessonProgress } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
@@ -18,23 +18,25 @@ export const lessonRouter = createRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found" });
       }
 
-      // If it's not a free lesson, check enrollment
-      if (!lesson.isFree) {
-        const enrollmentCheck = await db.select().from(enrollments)
-          .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, lesson.courseId)))
-          .limit(1);
+      // Check enrollment and payment
+      const enrollmentCheck = await db.select().from(enrollments)
+        .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, lesson.courseId)))
+        .limit(1);
 
-        if (enrollmentCheck.length === 0) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "You must be enrolled to view this lesson" });
-        }
-
-        const enrollment = enrollmentCheck[0];
-
-        // Update last accessed lesson
-        await db.update(enrollments)
-          .set({ lastLessonId: lesson.id })
-          .where(eq(enrollments.id, enrollment.id));
+      if (enrollmentCheck.length === 0) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You must be enrolled to view this lesson" });
       }
+
+      const enrollment = enrollmentCheck[0];
+
+      if (enrollment.paymentStatus !== "paid") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Payment is required to access this lesson" });
+      }
+
+      // Update last accessed lesson
+      await db.update(enrollments)
+        .set({ lastLessonId: lesson.id })
+        .where(eq(enrollments.id, enrollment.id));
 
       return lesson;
     }),

@@ -8,6 +8,13 @@
       "when": 1780663063583,
       "tag": "0000_same_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1780939269902,
+      "tag": "0001_rainy_psylocke",
+      "breakpoints": true
     }
   ]
 }

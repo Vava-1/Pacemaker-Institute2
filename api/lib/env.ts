@@ -15,6 +15,9 @@ const EnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional().or(z.literal("")),
   GOOGLE_CALLBACK_URL: z.string().url().optional().or(z.literal("")),
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
+  GROK_API_KEY: z.string().min(1, "GROK_API_KEY is required").optional().or(z.literal("")),
+  GEMINI_API_KEY: z.string().min(1, "GEMINI_API_KEY is required").optional().or(z.literal("")),
+  DEEPSEEK_API_KEY: z.string().startsWith("sk-").optional().or(z.literal("")),
   CLOUDINARY_URL: z.string().url().optional().or(z.literal("")),
   SMTP_HOST: z.string().optional().or(z.literal("")),
   SMTP_PORT: z.string().regex(/^\d+$/).optional().or(z.literal("")),
@@ -97,6 +100,7 @@ function deriveGoogleCallback(): string {
 
 export const env = {
   isProduction,
+  isDevelopment: !isProduction,
   nodeEnv: parsed.NODE_ENV,
   port: parsed.PORT,
   databaseUrl: parsed.DATABASE_URL,
@@ -110,6 +114,9 @@ export const env = {
   googleClientSecret: parsed.GOOGLE_CLIENT_SECRET ?? "",
   googleCallbackUrl: deriveGoogleCallback(),
   anthropicApiKey: parsed.ANTHROPIC_API_KEY ?? "",
+  grokApiKey: parsed.GROK_API_KEY ?? "",
+  geminiApiKey: parsed.GEMINI_API_KEY ?? "",
+  deepseekApiKey: parsed.DEEPSEEK_API_KEY ?? "",
   cloudinaryUrl: parsed.CLOUDINARY_URL ?? "",
   smtpHost: parsed.SMTP_HOST ?? "",
   smtpPort: parsed.SMTP_PORT ?? "",

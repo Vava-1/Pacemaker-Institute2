@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { createPool, getDb } from "../api/queries/connection";
 import {
-  categories, courses, modules, lessons, badges, users, enrollments, notifications,
+  categories, courses, modules, lessons, lessonProgress, badges, users, enrollments, notifications,
 } from "./schema";
 
 const SEED_CONFIG = {
@@ -11,60 +11,277 @@ const SEED_CONFIG = {
   student: { email: "student@pacemaker.institute", password: "Student123!" },
 };
 
-const CATEGORIES = [
-  { name: "Web Development", slug: "web-development", description: "Build modern web applications with frameworks like React, Vue, and Angular", icon: "Globe", color: "#3b82f6", order: 1 },
-  { name: "Data Science", slug: "data-science", description: "Learn data analysis, machine learning, and AI with Python and R", icon: "BarChart3", color: "#10b981", order: 2 },
-  { name: "Mobile Development", slug: "mobile-development", description: "Create iOS and Android apps with React Native, Flutter, and Swift", icon: "Smartphone", color: "#ec4899", order: 3 },
-  { name: "Cloud Computing", slug: "cloud-computing", description: "Master AWS, Azure, and Google Cloud platforms", icon: "Cloud", color: "#06b6d4", order: 4 },
-  { name: "Cybersecurity", slug: "cybersecurity", description: "Protect systems and networks from digital attacks", icon: "Shield", color: "#ef4444", order: 5 },
-  { name: "DevOps", slug: "devops", description: "Learn CI/CD, Docker, Kubernetes, and infrastructure as code", icon: "Container", color: "#8b5cf6", order: 6 },
+const CATEGORIES: { name: string; slug: string; description: string; icon: string; color: string; order: number; parentSlug?: string }[] = [
+  { name: "Languages", slug: "languages", description: "Master global languages including English, French, Kiswahili, and German", icon: "Languages", color: "#3b82f6", order: 1 },
+  { name: "English", slug: "english", description: "Learn English from beginner to advanced", icon: "BookOpen", color: "#2563eb", order: 1, parentSlug: "languages" },
+  { name: "French", slug: "french", description: "Learn French for communication and exams", icon: "BookOpen", color: "#6366f1", order: 2, parentSlug: "languages" },
+  { name: "Kiswahili", slug: "kiswahili", description: "Learn Kiswahili for regional and global communication", icon: "BookOpen", color: "#8b5cf6", order: 3, parentSlug: "languages" },
+  { name: "German", slug: "german", description: "Learn German for study, work, and travel", icon: "BookOpen", color: "#a855f7", order: 4, parentSlug: "languages" },
+  { name: "Language Proficiency Test Preparation", slug: "language-proficiency", description: "Prepare for international language exams and certifications", icon: "Award", color: "#d946ef", order: 5, parentSlug: "languages" },
+  { name: "English Test Prep Mentorship", slug: "test-prep-english", description: "Personal mentorship for English proficiency exams (TOEFL, IELTS, DUOLINGO, SAT, Cambridge)", icon: "BookOpen", color: "#2563eb", order: 1, parentSlug: "language-proficiency" },
+  { name: "French Test Prep Mentorship", slug: "test-prep-french", description: "Personal mentorship for French proficiency exams (DELF, DALF, TEF, TCF Canada, TCF Québec)", icon: "BookOpen", color: "#6366f1", order: 2, parentSlug: "language-proficiency" },
+  { name: "German Test Prep Mentorship", slug: "test-prep-german", description: "Personal mentorship for German proficiency exams (Goethe, TestDaF, TELC)", icon: "BookOpen", color: "#a855f7", order: 3, parentSlug: "language-proficiency" },
+  { name: "Bakery", slug: "bakery", description: "Turn your passion into profit with baking skills", icon: "Cake", color: "#f97316", order: 2 },
+  { name: "Salon", slug: "salon", description: "Become a professional in hair, beauty, and personal care", icon: "Scissors", color: "#ec4899", order: 3 },
+  { name: "Mechanics", slug: "mechanics", description: "Gain hands-on mechanical skills to build, repair, and innovate", icon: "Wrench", color: "#64748b", order: 4 },
+  { name: "AI Skills for Professionals", slug: "ai-skills", description: "Stay ahead with AI tools to boost productivity and career", icon: "Brain", color: "#8b5cf6", order: 5 },
+  { name: "Private Candidate Support", slug: "private-candidates", description: "Prepare for exams with structured lessons and guidance", icon: "Award", color: "#e11d48", order: 6 },
 ];
 
 const COURSES = [
   {
-    title: "Introduction to React",
-    slug: "intro-to-react",
-    description: "Learn React from scratch. Master components, hooks, state management, and build production-ready single-page applications with TypeScript.",
-    shortDescription: "Build modern UIs with React 19 and TypeScript",
-    price: "49.99",
-    categorySlug: "web-development",
+    title: "English for Beginners",
+    slug: "english-beginners",
+    description: "Start your English learning journey from zero. Master greetings, daily conversations, grammar basics, and build confidence in speaking.",
+    shortDescription: "Learn English from scratch with practical conversations",
+    price: "0.00",
+    categorySlug: "english",
     level: "beginner",
     lessons: [
-      { title: "React Fundamentals", type: "video", duration: 30, content: "Learn JSX, components, and props in React." },
-      { title: "Hooks in Depth", type: "video", duration: 45, content: "Master useState, useEffect, useContext and custom hooks." },
-      { title: "State Management", type: "text", duration: 20, content: "Compare useState, useReducer, Context API, and external state libraries." },
-      { title: "React Quiz", type: "quiz", duration: 15, content: "Test your understanding of React fundamentals." },
+      { title: "Greetings & Introductions", type: "video", duration: 20, content: "Learn how to greet people and introduce yourself." },
+      { title: "Daily Conversations", type: "video", duration: 25, content: "Practice everyday conversations for real-life situations." },
+      { title: "Grammar Basics", type: "text", duration: 30, content: "Understand basic English grammar rules." },
+      { title: "English Quiz", type: "quiz", duration: 15, content: "Test your English fundamentals." },
     ],
   },
   {
-    title: "Python for Data Science",
-    slug: "python-data-science",
-    description: "Learn Python programming for data analysis, visualization, and machine learning. Covers NumPy, Pandas, Matplotlib, and Scikit-learn.",
-    shortDescription: "Analyze data and build ML models with Python",
-    price: "59.99",
-    categorySlug: "data-science",
+    title: "Intermediate English",
+    slug: "intermediate-english",
+    description: "Build on your English foundation. Master complex grammar, expand vocabulary, and improve reading and writing skills for professional settings.",
+    shortDescription: "Advance your English for work and study",
+    price: "39.99",
+    categorySlug: "english",
     level: "intermediate",
     lessons: [
-      { title: "Python Basics for Data Science", type: "video", duration: 40, content: "Variables, data types, lists, dicts, and functions." },
-      { title: "NumPy and Pandas", type: "video", duration: 50, content: "Data manipulation with arrays and dataframes." },
-      { title: "Data Visualization", type: "video", duration: 35, content: "Creating charts and plots with Matplotlib and Seaborn." },
-      { title: "Machine Learning Intro", type: "pdf", duration: 25, content: "Supervised vs unsupervised learning with Scikit-learn examples." },
-      { title: "Data Science Project", type: "text", duration: 60, content: "End-to-end data science project from data collection to model deployment." },
+      { title: "Advanced Grammar", type: "video", duration: 30, content: "Master complex tenses, conditionals, and passive voice." },
+      { title: "Business English", type: "video", duration: 35, content: "Professional communication for meetings and emails." },
+      { title: "Essay Writing", type: "text", duration: 30, content: "Structure and write compelling essays and reports." },
+      { title: "English Reading Comprehension", type: "quiz", duration: 20, content: "Test your reading and comprehension skills." },
     ],
   },
   {
-    title: "AWS Fundamentals",
-    slug: "aws-fundamentals",
-    description: "Master Amazon Web Services core services including EC2, S3, Lambda, DynamoDB, and API Gateway. Prepare for the AWS Certified Cloud Practitioner exam.",
-    shortDescription: "Get started with cloud computing on AWS",
-    price: "39.99",
-    categorySlug: "cloud-computing",
+    title: "Advanced English Mastery",
+    slug: "advanced-english",
+    description: "Achieve fluency in English. Focus on academic writing, advanced speaking, presentations, and nuanced communication for native-level proficiency.",
+    shortDescription: "Achieve native-level English fluency",
+    price: "49.99",
+    categorySlug: "english",
+    level: "advanced",
+    lessons: [
+      { title: "Academic Writing", type: "video", duration: 40, content: "Research papers, citations, and formal writing." },
+      { title: "Public Speaking", type: "video", duration: 35, content: "Deliver powerful presentations and speeches in English." },
+      { title: "Idioms & Nuance", type: "text", duration: 25, content: "Master idiomatic expressions and cultural nuances." },
+      { title: "Advanced English Assessment", type: "quiz", duration: 30, content: "Comprehensive test of advanced English skills." },
+    ],
+  },
+  {
+    title: "French for Communication",
+    slug: "french-communication",
+    description: "Learn French for everyday communication. Focus on speaking, listening, and building confidence in real-world situations.",
+    shortDescription: "Speak French with confidence in daily life",
+    price: "29.99",
+    categorySlug: "french",
     level: "beginner",
     lessons: [
-      { title: "Introduction to Cloud Computing", type: "video", duration: 25, content: "What is cloud computing? Benefits and deployment models." },
-      { title: "EC2 and Compute Services", type: "video", duration: 40, content: "Launch and manage virtual servers in the cloud." },
-      { title: "S3 Storage", type: "video", duration: 35, content: "Object storage, buckets, permissions, and lifecycle policies." },
-      { title: "AWS Lambda", type: "text", duration: 20, content: "Serverless computing with Lambda functions." },
+      { title: "French Pronunciation", type: "video", duration: 25, content: "Master French sounds and pronunciation." },
+      { title: "Essential Vocabulary", type: "video", duration: 30, content: "Learn key words and phrases for daily use." },
+      { title: "Building Sentences", type: "text", duration: 20, content: "Construct simple to complex sentences in French." },
+      { title: "French Quiz", type: "quiz", duration: 15, content: "Test your French communication skills." },
+    ],
+  },
+  {
+    title: "Intermediate French",
+    slug: "intermediate-french",
+    description: "Deepen your French knowledge. Master past tenses, subjunctive mood, and conversational fluency for real-life interactions.",
+    shortDescription: "Take your French to the next level",
+    price: "39.99",
+    categorySlug: "french",
+    level: "intermediate",
+    lessons: [
+      { title: "Past Tenses & Subjunctive", type: "video", duration: 35, content: "Master passé composé, imparfait, and subjunctive." },
+      { title: "Conversational French", type: "video", duration: 30, content: "Practice real-life dialogues and expressions." },
+      { title: "French Culture & Etiquette", type: "text", duration: 20, content: "Understand cultural context for better communication." },
+      { title: "French Grammar Quiz", type: "quiz", duration: 15, content: "Test your intermediate grammar knowledge." },
+    ],
+  },
+  {
+    title: "Advanced French Fluency",
+    slug: "advanced-french",
+    description: "Achieve advanced French proficiency. Focus on literary analysis, professional writing, and nuanced expression.",
+    shortDescription: "Master French at an advanced level",
+    price: "49.99",
+    categorySlug: "french",
+    level: "advanced",
+    lessons: [
+      { title: "Literary French", type: "video", duration: 40, content: "Analyze French literature and poetry." },
+      { title: "Professional French", type: "video", duration: 35, content: "Business correspondence and formal presentations." },
+      { title: "Advanced Writing", type: "text", duration: 30, content: "Write persuasive essays and reports in French." },
+      { title: "Advanced French Test", type: "quiz", duration: 25, content: "Comprehensive advanced French assessment." },
+    ],
+  },
+  {
+    title: "Kiswahili for Beginners",
+    slug: "kiswahili-beginners",
+    description: "Start speaking Kiswahili from day one. Learn greetings, basic vocabulary, and everyday phrases used across East Africa.",
+    shortDescription: "Learn Kiswahili from scratch",
+    price: "19.99",
+    categorySlug: "kiswahili",
+    level: "beginner",
+    lessons: [
+      { title: "Kiswahili Greetings", type: "video", duration: 20, content: "Master common greetings and introductions." },
+      { title: "Basic Vocabulary", type: "video", duration: 25, content: "Learn essential words for daily life." },
+      { title: "Sentence Structure", type: "text", duration: 20, content: "Understand Kiswahili noun classes and sentence construction." },
+      { title: "Kiswahili Quiz", type: "quiz", duration: 15, content: "Test your basic Kiswahili skills." },
+    ],
+  },
+  {
+    title: "Intermediate Kiswahili",
+    slug: "intermediate-kiswahili",
+    description: "Build fluency in Kiswahili. Master verb conjugations, storytelling, and deeper conversational skills.",
+    shortDescription: "Advance your Kiswahili communication",
+    price: "29.99",
+    categorySlug: "kiswahili",
+    level: "intermediate",
+    lessons: [
+      { title: "Verb Tenses", type: "video", duration: 30, content: "Master present, past, and future tenses in Kiswahili." },
+      { title: "Storytelling & Narration", type: "video", duration: 25, content: "Tell stories and describe events in Kiswahili." },
+      { title: "Kiswahili in Media", type: "text", duration: 20, content: "Understand news, songs, and radio in Kiswahili." },
+      { title: "Intermediate Quiz", type: "quiz", duration: 15, content: "Test your intermediate Kiswahili." },
+    ],
+  },
+  {
+    title: "Advanced Kiswahili",
+    slug: "advanced-kiswahili",
+    description: "Achieve advanced proficiency in Kiswahili. Focus on academic writing, professional communication, and literary analysis.",
+    shortDescription: "Master advanced Kiswahili",
+    price: "39.99",
+    categorySlug: "kiswahili",
+    level: "advanced",
+    lessons: [
+      { title: "Academic Kiswahili", type: "video", duration: 35, content: "Write essays and academic papers in Kiswahili." },
+      { title: "Professional Communication", type: "video", duration: 30, content: "Business Kiswahili for the workplace." },
+      { title: "Kiswahili Literature", type: "text", duration: 25, content: "Analyze Kiswahili poetry and prose." },
+      { title: "Advanced Assessment", type: "quiz", duration: 20, content: "Comprehensive advanced Kiswahili test." },
+    ],
+  },
+  {
+    title: "German for Beginners",
+    slug: "german-beginners",
+    description: "Start learning German. Master the alphabet, basic grammar, and essential phrases for travel, work, and daily life.",
+    shortDescription: "Learn German from the ground up",
+    price: "24.99",
+    categorySlug: "german",
+    level: "beginner",
+    lessons: [
+      { title: "German Alphabet & Pronunciation", type: "video", duration: 25, content: "Master German sounds and the alphabet." },
+      { title: "Basic Conversations", type: "video", duration: 30, content: "Essential phrases for everyday situations." },
+      { title: "Grammar Foundations", type: "text", duration: 25, content: "German noun genders, cases, and basic sentence structure." },
+      { title: "German Quiz", type: "quiz", duration: 15, content: "Test your basic German knowledge." },
+    ],
+  },
+  {
+    title: "Intermediate German",
+    slug: "intermediate-german",
+    description: "Advance your German skills. Master complex grammar, build vocabulary, and gain confidence in conversations.",
+    shortDescription: "Build confidence in German",
+    price: "34.99",
+    categorySlug: "german",
+    level: "intermediate",
+    lessons: [
+      { title: "Advanced Grammar", type: "video", duration: 35, content: "Master cases, prepositions, and separable verbs." },
+      { title: "Everyday Conversations", type: "video", duration: 30, content: "Navigate real-life situations in German." },
+      { title: "Reading & Writing", type: "text", duration: 25, content: "Read articles and write responses in German." },
+      { title: "Intermediate Test", type: "quiz", duration: 15, content: "Test your intermediate German." },
+    ],
+  },
+  {
+    title: "Advanced German",
+    slug: "advanced-german",
+    description: "Achieve fluency in German. Master academic writing, professional presentations, and nuanced expression.",
+    shortDescription: "Achieve German fluency",
+    price: "44.99",
+    categorySlug: "german",
+    level: "advanced",
+    lessons: [
+      { title: "Academic German", type: "video", duration: 40, content: "Write research papers and academic texts." },
+      { title: "Business German", type: "video", duration: 35, content: "Professional communication in German workplaces." },
+      { title: "Literary Analysis", type: "text", duration: 30, content: "Analyze German literature and poetry." },
+      { title: "Advanced Assessment", type: "quiz", duration: 25, content: "Comprehensive advanced German test." },
+    ],
+  },
+  {
+    title: "Professional Baking",
+    slug: "professional-baking",
+    description: "From bread to pastries, learn the art and science of professional baking. Suitable for beginners and aspiring bakers.",
+    shortDescription: "Master the art of bread, cakes, and pastries",
+    price: "49.99",
+    categorySlug: "bakery",
+    level: "beginner",
+    lessons: [
+      { title: "Baking Fundamentals", type: "video", duration: 30, content: "Essential techniques and ingredients for baking." },
+      { title: "Bread Making", type: "video", duration: 45, content: "Learn to make artisan bread from scratch." },
+      { title: "Cakes & Frostings", type: "video", duration: 40, content: "Bake and decorate professional-quality cakes." },
+      { title: "Baking Project", type: "text", duration: 60, content: "Create your own bakery-worthy product." },
+    ],
+  },
+  {
+    title: "Salon Hair Styling",
+    slug: "salon-hair-styling",
+    description: "Learn professional hair styling techniques including cutting, coloring, and styling for all hair types.",
+    shortDescription: "Become a professional hair stylist",
+    price: "39.99",
+    categorySlug: "salon",
+    level: "beginner",
+    lessons: [
+      { title: "Hair Basics & Hygiene", type: "video", duration: 20, content: "Understanding hair types and salon hygiene." },
+      { title: "Cutting Techniques", type: "video", duration: 40, content: "Master basic and advanced hair cutting." },
+      { title: "Coloring & Treatments", type: "video", duration: 35, content: "Learn hair coloring and treatment applications." },
+      { title: "Salon Practice", type: "text", duration: 45, content: "Practice a complete salon service." },
+    ],
+  },
+  {
+    title: "Automotive Mechanics",
+    slug: "automotive-mechanics",
+    description: "Master the fundamentals of automotive mechanics including engine repair, maintenance, and diagnostics.",
+    shortDescription: "Learn to repair and maintain vehicles",
+    price: "59.99",
+    categorySlug: "mechanics",
+    level: "beginner",
+    lessons: [
+      { title: "Engine Basics", type: "video", duration: 35, content: "Understand how internal combustion engines work." },
+      { title: "Brake Systems", type: "video", duration: 30, content: "Learn to inspect and repair brake systems." },
+      { title: "Electrical Systems", type: "text", duration: 25, content: "Basic automotive electrical diagnostics." },
+      { title: "Mechanics Quiz", type: "quiz", duration: 15, content: "Test your mechanical knowledge." },
+    ],
+  },
+  {
+    title: "AI Tools for Professionals",
+    slug: "ai-tools-professionals",
+    description: "Learn to use AI tools like ChatGPT, Claude, and other AI platforms to boost workplace productivity and career growth.",
+    shortDescription: "Boost your career with practical AI skills",
+    price: "34.99",
+    categorySlug: "ai-skills",
+    level: "beginner",
+    lessons: [
+      { title: "Introduction to AI", type: "video", duration: 25, content: "What is AI and how it's changing the workplace." },
+      { title: "Prompt Engineering", type: "video", duration: 35, content: "Master the art of writing effective AI prompts." },
+      { title: "AI for Productivity", type: "text", duration: 30, content: "Use AI to automate tasks and boost efficiency." },
+      { title: "AI Ethics & Best Practices", type: "text", duration: 20, content: "Understand responsible AI usage." },
+    ],
+  },
+  {
+    title: "Exam Preparation Support",
+    slug: "exam-preparation-support",
+    description: "Structured support for national and international exam preparation including study strategies, practice tests, and personalized guidance.",
+    shortDescription: "Prepare confidently for your exams",
+    price: "19.99",
+    categorySlug: "private-candidates",
+    level: "all_levels",
+    lessons: [
+      { title: "Study Strategies", type: "video", duration: 25, content: "Effective study techniques for exam success." },
+      { title: "Practice Tests", type: "quiz", duration: 45, content: "Simulated exam questions with detailed feedback." },
+      { title: "Time Management", type: "text", duration: 20, content: "Master exam time management strategies." },
+      { title: "Final Review", type: "text", duration: 30, content: "Comprehensive review of key exam topics." },
     ],
   },
 ];
@@ -137,18 +354,47 @@ async function seed() {
   });
 
   console.log("\nSeeding categories...");
-  const existingCats = await db.select().from(categories);
-  if (existingCats.length === 0) {
-    await db.insert(categories).values(CATEGORIES);
-    console.log(`  + Created ${CATEGORIES.length} categories`);
-  } else {
-    console.log("  - Categories already exist, skipping.");
+  await db.delete(categories);
+  const insertedSlugs = new Set<string>();
+  const slugToId: Record<string, number> = {};
+  const parentCategories = CATEGORIES.filter(c => !c.parentSlug);
+  for (const cat of parentCategories) {
+    const [result] = await db.insert(categories).values({
+      name: cat.name, slug: cat.slug, description: cat.description,
+      icon: cat.icon, color: cat.color, order: cat.order,
+    });
+    slugToId[cat.slug] = result.insertId;
+    insertedSlugs.add(cat.slug);
+    const childCategories = CATEGORIES.filter(c => c.parentSlug === cat.slug);
+    for (const child of childCategories) {
+      const [childResult] = await db.insert(categories).values({
+        name: child.name, slug: child.slug, description: child.description,
+        icon: child.icon, color: child.color, order: child.order,
+        parentId: result.insertId,
+      });
+      slugToId[child.slug] = childResult.insertId;
+      insertedSlugs.add(child.slug);
+    }
   }
+  const grandchildCategories = CATEGORIES.filter(
+    c => !insertedSlugs.has(c.slug) && c.parentSlug && slugToId[c.parentSlug],
+  );
+  for (const child of grandchildCategories) {
+    await db.insert(categories).values({
+      name: child.name, slug: child.slug, description: child.description,
+      icon: child.icon, color: child.color, order: child.order,
+      parentId: slugToId[child.parentSlug!],
+    });
+  }
+  console.log(`  + Created ${CATEGORIES.length} categories (including subcategories)`);
 
   console.log("\nSeeding courses and lessons...");
-  const existingCourses = await db.select().from(courses);
-  if (existingCourses.length === 0) {
-    for (const courseData of COURSES) {
+  await db.delete(lessonProgress);
+  await db.delete(lessons);
+  await db.delete(modules);
+  await db.delete(enrollments);
+  await db.delete(courses);
+  for (const courseData of COURSES) {
       const cat = (await db.select().from(categories).where(eq(categories.slug, courseData.categorySlug)).limit(1))[0];
       if (!cat) {
         console.log(`  ! Category ${courseData.categorySlug} not found, skipping course`);
@@ -201,9 +447,6 @@ async function seed() {
 
       console.log(`  + Created course: ${courseData.title} (${courseData.lessons.length} lessons)`);
     }
-  } else {
-    console.log("  - Courses already exist, skipping.");
-  }
 
   console.log("\nSeeding badges...");
   const existingBadges = await db.select().from(badges);

@@ -1,11 +1,9 @@
-import { useSearchParams, Link } from 'react-router'
+import { Link } from 'react-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { CheckCircle, BookOpen, ArrowRight } from 'lucide-react'
 
 export default function PaymentSuccess() {
-  const [searchParams] = useSearchParams()
-  const courseId = searchParams.get('course_id')
 
   return (
     <div className="flex items-center justify-center min-h-[70vh] p-6">
