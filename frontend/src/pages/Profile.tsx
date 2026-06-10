@@ -13,6 +13,7 @@ import {
   User, Mail, BookOpen, Trophy, Target, Award,
   Clock, Flame, Zap, GraduationCap, Camera, Save,
 } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 import { useTranslation } from 'react-i18next'
 
 export default function Profile() {
@@ -31,6 +32,9 @@ export default function Profile() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="absolute top-20 left-4">
+          <BackButton />
+        </div>
         <div className="text-center">
           <User className="h-16 w-16 text-slate-300 mx-auto mb-4" />
           <p className="text-slate-500">Login to view your profile</p>
@@ -41,6 +45,7 @@ export default function Profile() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <BackButton />
       {/* Profile Header */}
       <Card className="mb-6 overflow-hidden">
         <div className="h-32 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500" />

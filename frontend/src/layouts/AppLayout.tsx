@@ -10,18 +10,23 @@ export function AppLayout() {
   const location = useLocation()
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/forgot-password' || location.pathname === '/reset-password' || location.pathname === '/verify-email'
   const isAdminPage = location.pathname === '/admin'
-  const showSidebar = user && !isAuthPage && !isAdminPage
+  const isFullPage = location.pathname === '/ai-tutor'
+  const showSidebar = user && !isAuthPage && !isAdminPage && !isFullPage && location.pathname !== '/'
 
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
-      <div className="flex pt-14 md:pt-16">
+      <div className={`flex pt-14 md:pt-16 ${isFullPage ? 'min-h-[calc(100vh-3.5rem)] md:min-h-[calc(100vh-4rem)]' : ''}`}>
         {showSidebar && <Sidebar />}
         <main className={`flex-1 ${showSidebar ? 'lg:ml-64' : ''}`}>
           <Outlet />
         </main>
       </div>
-      {!isAuthPage && <Footer />}
+      {!isAuthPage && !isFullPage && (
+        <div className={showSidebar ? 'lg:ml-64' : ''}>
+          <Footer />
+        </div>
+      )}
       <CookieConsent />
     </div>
   )

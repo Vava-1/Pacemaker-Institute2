@@ -3,7 +3,6 @@
     "home": "Nyumbani",
     "courses": "Kozi",
     "blog": "Blogu",
-    "blogBadge": "Inakuja",
     "logIn": "Ingia",
     "signUp": "Jisajili",
     "profile": "Wasifu",
@@ -318,5 +317,15 @@
     "privacyPolicy": "Sera ya Faragha",
     "cookiePolicy": "Sera ya Vidakuzi",
     "allRightsReserved": "Haki zote zimehifadhiwa."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Vidokezo, miongozo na maarifa ya kuharakisha safari yako ya kujifunza.",
+    "featured": "Makala Vilivyoangaziwa",
+    "allPosts": "Makala Yote",
+    "readMore": "Soma Zaidi",
+    "noPosts": "Hakuna makala bado. Rudi tena karibuni!",
+    "backToBlog": "Rudi kwenye Blog",
+    "notFound": "Makala haikupatikana"
   }
 }

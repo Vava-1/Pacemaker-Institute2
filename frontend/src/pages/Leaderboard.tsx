@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Trophy, Flame, Target, Clock, Zap, Crown, Medal, Award,
 } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 export default function Leaderboard() {
   const { user } = useAuth()
@@ -31,6 +32,7 @@ export default function Leaderboard() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
+      <BackButton />
       <div className="text-center mb-6 md:mb-8">
         <div className="w-12 md:w-14 h-12 md:h-14 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-3 md:mb-4">
           <Trophy className="h-6 md:h-7 w-6 md:w-7 text-amber-500" />

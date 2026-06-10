@@ -3,7 +3,6 @@
     "home": "Home",
     "courses": "Courses",
     "blog": "Blog",
-    "blogBadge": "Soon",
     "logIn": "Log in",
     "signUp": "Sign up",
     "profile": "Profile",
@@ -318,5 +317,15 @@
     "privacyPolicy": "Privacy Policy",
     "cookiePolicy": "Cookie Policy",
     "allRightsReserved": "All rights reserved."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Tips, guides, and insights to accelerate your learning journey.",
+    "featured": "Featured Posts",
+    "allPosts": "All Posts",
+    "readMore": "Read More",
+    "noPosts": "No blog posts yet. Check back soon!",
+    "backToBlog": "Back to Blog",
+    "notFound": "Post not found"
   }
 }

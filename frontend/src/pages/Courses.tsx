@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BookOpen, Clock, Users, Star, Search, GraduationCap, Lock, ChevronLeft, Globe, Award, User, Phone, Mail, MessageSquare } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 const levels = ['all', 'beginner', 'intermediate', 'advanced']
 
@@ -399,6 +400,7 @@ export default function Courses() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <BackButton />
       <div className="mb-6 md:mb-8">
         <div className="flex items-center gap-2">
           {categoryFilter && (

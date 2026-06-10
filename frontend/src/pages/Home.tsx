@@ -114,6 +114,7 @@ function ScrollReveal({ children, className = '' }: { children: React.ReactNode;
 export default function Home() {
   const { t } = useTranslation()
   const { user } = useAuth()
+
   const { data: courses } = trpc.course.list.useQuery({ featured: true })
   const { data: platformStats } = trpc.course.publicStats.useQuery(undefined, { enabled: true })
   const { data: dashboardStats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })

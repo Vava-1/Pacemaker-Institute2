@@ -3,7 +3,6 @@
     "home": "Accueil",
     "courses": "Cours",
     "blog": "Blog",
-    "blogBadge": "Bientôt",
     "logIn": "Connexion",
     "signUp": "Inscription",
     "profile": "Profil",
@@ -318,5 +317,15 @@
     "privacyPolicy": "Politique de Confidentialité",
     "cookiePolicy": "Politique des Cookies",
     "allRightsReserved": "Tous droits réservés."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Conseils, guides et astuces pour accélérer votre apprentissage.",
+    "featured": "Articles à la une",
+    "allPosts": "Tous les articles",
+    "readMore": "Lire la suite",
+    "noPosts": "Pas encore d'articles. Revenez bientôt !",
+    "backToBlog": "Retour au Blog",
+    "notFound": "Article introuvable"
   }
 }

@@ -9,6 +9,7 @@ import {
   Bell, BookOpen, Target, Award, Video, MessageSquare,
   CheckCircle, Clock,
 } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 const typeIcons: Record<string, any> = {
   course: BookOpen,
@@ -60,6 +61,9 @@ export default function Notifications() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="absolute top-20 left-4">
+          <BackButton />
+        </div>
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center">
             <Bell className="h-12 w-12 text-blue-500 mx-auto mb-4" />
@@ -76,6 +80,7 @@ export default function Notifications() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
+      <BackButton />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-brand-950">{t('notifications.title')}</h1>

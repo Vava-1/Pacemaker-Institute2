@@ -21,7 +21,7 @@ export function Navbar() {
   const navLinks = [
     { label: t('nav.home'), href: '/' },
     { label: t('nav.courses'), href: '/courses' },
-    { label: t('nav.blog'), href: '/blog', badge: t('nav.blogBadge') },
+    { label: t('nav.blog'), href: '/blog' },
   ]
   const { user, logout } = useAuth()
   const navigate = useNavigate()

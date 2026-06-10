@@ -53,7 +53,7 @@ export default function Login() {
       }
       toast.success(t('auth.loggedInSuccess'))
       utils.auth.me.invalidate()
-      navigate('/')
+      navigate('/dashboard')
     },
     onError: (error) => {
       toast.error(error.message || t('auth.failedToLogin'))

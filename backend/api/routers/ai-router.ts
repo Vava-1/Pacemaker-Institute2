@@ -14,7 +14,7 @@ const SendMessageSchema = z.object({
   courseId: z.number().positive().optional(),
   lessonId: z.number().positive().optional(),
   discipline: z.string().optional(),
-  model: z.enum(["gemini", "grok", "deepseek", "claude"]).optional(),
+  model: z.enum(["gemini", "grok", "deepseek"]).optional(),
 });
 
 const GetHistorySchema = z.object({
@@ -75,8 +75,10 @@ export const aiRouter = createRouter({
             updatedAt: new Date(),
           }).where(eq(aiConversations.id, Number(conversationId)));
         } else {
+          const title = input.message.length > 60 ? input.message.slice(0, 57) + "..." : input.message;
           const [insertResult] = await db.insert(aiConversations).values({
             userId: ctx.user.id,
+            title,
             discipline: input.discipline || input.courseId?.toString() || "general",
             messages: messages,
           });
@@ -99,7 +101,7 @@ export const aiRouter = createRouter({
 
   getHistory: protectedProcedure
     .input(GetHistorySchema)
-    .query(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
 
       const rows = await db
@@ -126,6 +128,8 @@ export const aiRouter = createRouter({
     const conversations = await db
       .select({
         id: aiConversations.id,
+        title: aiConversations.title,
+        discipline: aiConversations.discipline,
         lastMessage: sql`JSON_UNQUOTE(JSON_EXTRACT(messages, CONCAT('$[', JSON_LENGTH(messages) - 1, '].content')))`,
         updatedAt: aiConversations.updatedAt,
         messageCount: sql`JSON_LENGTH(messages)`,
@@ -155,7 +159,7 @@ export const aiRouter = createRouter({
     .input(z.object({
       content: z.string().min(1).max(50000),
       instruction: z.string().min(1).max(1000),
-      model: z.enum(["gemini", "grok", "deepseek", "claude"]).optional(),
+      model: z.enum(["gemini", "grok", "deepseek"]).optional(),
     }))
     .mutation(async ({ input }) => {
       try {

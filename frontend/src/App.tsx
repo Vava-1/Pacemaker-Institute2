@@ -20,6 +20,7 @@ const Languages = lazy(() => import('./pages/Languages'))
 const LiveClasses = lazy(() => import('./pages/LiveClasses'))
 const Chat = lazy(() => import('./pages/Chat'))
 const Notifications = lazy(() => import('./pages/Notifications'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Subscription = lazy(() => import('./pages/Subscription'))
 
@@ -28,6 +29,8 @@ const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const LessonPlayer = lazy(() => import('./pages/LessonPlayer'))
 const CertificateView = lazy(() => import('./pages/CertificateView'))
 
+const Blog = lazy(() => import('./pages/Blog'))
+const BlogPost = lazy(() => import('./pages/BlogPost'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
@@ -62,6 +65,7 @@ export default function App() {
           <Route path="/live-classes" element={<LiveClasses />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/subscription" element={<Subscription />} />
           <Route path="/login" element={<Login />} />
@@ -69,6 +73,8 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/cookies" element={<Cookies />} />

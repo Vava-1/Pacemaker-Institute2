@@ -1,7 +1,7 @@
 import { env } from "./env";
 import { logger } from "./logger";
 
-export type AIModel = "gemini" | "grok" | "deepseek" | "claude";
+export type AIModel = "gemini" | "grok" | "deepseek";
 
 interface AiMessage {
   role: "user" | "assistant" | "system";
@@ -39,10 +39,10 @@ function detectModel(message: string, discipline?: string): AIModel {
   const longContent = message.length > 2000;
 
   if (langKeywords.test(lower)) return "gemini";
-  if (discipline === "ai-skills" || codeKeywords.test(lower)) return "grok";
-  if (mathKeywords.test(lower)) return "grok";
+  if (discipline === "ai-skills" || codeKeywords.test(lower)) return "gemini";
+  if (mathKeywords.test(lower)) return "gemini";
   if (longContent) return "deepseek";
-  return "grok";
+  return "gemini";
 }
 
 async function callGemini(messages: AiMessage[]): Promise<AiResponse> {
@@ -50,7 +50,7 @@ async function callGemini(messages: AiMessage[]): Promise<AiResponse> {
   if (!key) throw new Error("Gemini API key not configured");
 
   const body = {
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -93,7 +93,7 @@ async function callGrok(messages: AiMessage[]): Promise<AiResponse> {
   if (!key) throw new Error("Grok API key not configured");
 
   const body = {
-    model: "grok-2-latest",
+    model: "grok-beta",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -168,44 +168,27 @@ async function callDeepSeek(messages: AiMessage[]): Promise<AiResponse> {
   };
 }
 
-async function callClaude(messages: AiMessage[]): Promise<AiResponse> {
-  const key = env.anthropicApiKey;
-  if (!key) throw new Error("Anthropic API key not configured");
-
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const anthropic = new Anthropic({ apiKey: key });
-
-  const response = await anthropic.messages.create({
-    model: "claude-3-sonnet-20240229",
-    max_tokens: 2048,
-    system: SYSTEM_PROMPT,
-    messages: messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-    temperature: 0.7,
-  });
-
-  const content =
-    response.content[0]?.type === "text"
-      ? response.content[0].text
-      : "I'm sorry, I couldn't process that request.";
-
-  return {
-    content,
-    model: "claude",
-    usage: {
-      inputTokens: response.usage?.input_tokens ?? 0,
-      outputTokens: response.usage?.output_tokens ?? 0,
-    },
-  };
-}
-
 function getFallbackChain(model: AIModel): AIModel[] {
   const order: Record<AIModel, AIModel[]> = {
-    gemini: ["gemini", "deepseek", "grok", "claude"],
-    grok: ["grok", "deepseek", "gemini", "claude"],
-    deepseek: ["deepseek", "grok", "gemini", "claude"],
-    claude: ["claude", "deepseek", "grok", "gemini"],
+    gemini: ["gemini", "deepseek", "grok"],
+    grok: ["grok", "gemini", "deepseek"],
+    deepseek: ["deepseek", "gemini", "grok"],
   };
-  return order[model] ?? [model, "deepseek", "grok"];
+  return order[model] ?? ["gemini", "deepseek", "grok"];
+}
+
+async function firstSuccessful<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = 0;
+    const errors: Error[] = [];
+    for (const p of promises) {
+      p.then(resolve, (err: Error) => {
+        errors.push(err);
+        settled++;
+        if (settled === promises.length) reject(errors);
+      });
+    }
+  });
 }
 
 export async function sendMessage(params: {
@@ -222,33 +205,21 @@ export async function sendMessage(params: {
     gemini: callGemini,
     grok: callGrok,
     deepseek: callDeepSeek,
-    claude: callClaude,
   };
 
-  const fallbackChain = getFallbackChain(preferredModel);
+  const chain = getFallbackChain(preferredModel).filter((m) => callers[m]);
 
-  let lastError: Error | null = null;
-  for (const model of fallbackChain) {
-    const caller = callers[model];
-    if (!caller) continue;
+  const start = Date.now();
 
-    try {
-      const start = Date.now();
-      const result = await caller(params.messages);
-      if (model !== preferredModel) {
-        logger.info("AI response with fallback", { requested: preferredModel, used: model, latency: Date.now() - start, ...result.usage });
-      } else {
-        logger.info("AI response", { model, latency: Date.now() - start, ...result.usage });
-      }
-      return result;
-    } catch (err: any) {
-      lastError = err;
-      logger.warn(`AI model ${model} failed, trying next`, { error: err.message });
-    }
+  try {
+    const result = await firstSuccessful(chain.map((model) => callers[model](params.messages)));
+    logger.info("AI response", { model: result.model, latency: Date.now() - start, ...result.usage });
+    return result;
+  } catch (errors: any) {
+    const msgs = (errors as Error[]).map((e) => e.message);
+    logger.error("AI service error — all models failed", { preferred: preferredModel, errors: msgs });
+    throw new Error(`All AI providers failed: ${msgs.join(" | ")}`);
   }
-
-  logger.error("AI service error — all models failed", { preferred: preferredModel, error: lastError?.message });
-  throw lastError ?? new Error("All AI providers failed to respond");
 }
 
 export async function analyzeContent(params: {
@@ -292,7 +263,7 @@ Return ONLY valid JSON, no other text.`;
 
   const result = await sendMessage({
     messages: [{ role: "user", content: prompt }],
-    model: "grok",
+    model: "gemini",
   });
 
   return result.content;

@@ -114,7 +114,6 @@ export const env = {
   googleClientId: parsed.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: parsed.GOOGLE_CLIENT_SECRET ?? "",
   googleCallbackUrl: deriveGoogleCallback(),
-  anthropicApiKey: parsed.ANTHROPIC_API_KEY ?? "",
   grokApiKey: parsed.GROK_API_KEY ?? "",
   geminiApiKey: parsed.GEMINI_API_KEY ?? "",
   deepseekApiKey: parsed.DEEPSEEK_API_KEY ?? "",

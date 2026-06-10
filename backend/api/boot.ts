@@ -37,7 +37,7 @@ app.use("*", secureHeaders({
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
     imgSrc: ["'self'", "data:", "blob:", "https:", "https://res.cloudinary.com"],
-    connectSrc: ["'self'", "https://api.stripe.com", "https://api.anthropic.com"],
+    connectSrc: ["'self'", "https://api.stripe.com"],
     frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
     mediaSrc: ["'self'", "https:", "blob:"],
     objectSrc: ["'none'"],
@@ -157,14 +157,7 @@ app.get("/api/health", async (c) => {
     services.stripe = { status: "not_configured" };
   }
 
-  // 3. Anthropic (lightweight ping - just check key is present + callable)
-  if (env.anthropicApiKey) {
-    services.anthropic = { status: "ok", detail: "Key present" };
-  } else {
-    services.anthropic = { status: "not_configured" };
-  }
-
-  // 4. SMTP
+  // 3. SMTP
   if (env.smtpHost && env.smtpUser) {
     services.smtp = { status: "ok", detail: "Configured" };
   } else {

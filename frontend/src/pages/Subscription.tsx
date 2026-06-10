@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Check, Sparkles, Zap, Crown, ArrowRight } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 export default function Subscription() {
   const { user } = useAuth()
@@ -21,6 +22,7 @@ export default function Subscription() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      <BackButton />
       <div className="text-center mb-12">
         <h1 className="text-3xl font-bold text-brand-950 mb-2">{t('subscription.title')}</h1>
         <p className="text-slate-500 max-w-xl mx-auto">

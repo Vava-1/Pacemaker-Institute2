@@ -14,6 +14,7 @@ import {
   Target, Zap, Flame, Clock, CheckCircle, XCircle,
   ArrowRight, GraduationCap, TrendingUp,
 } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 export default function Exercises() {
   const { user } = useAuth()
@@ -71,6 +72,9 @@ export default function Exercises() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="absolute top-20 left-4">
+          <BackButton />
+        </div>
         <Card className="max-w-md w-full mx-4">
           <CardContent className="p-8 text-center">
             <Target className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
@@ -89,6 +93,7 @@ export default function Exercises() {
     const options = (currentExercise.options as any[] | null) ?? []
     return (
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
+        <BackButton />
         <Card>
           <CardContent className="p-4 md:p-6">
             <div className="flex items-start justify-between mb-4 md:mb-6 gap-4">
@@ -175,6 +180,7 @@ export default function Exercises() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <BackButton />
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-brand-950 mb-2">{t('exercises.title')}</h1>
         <p className="text-sm md:text-base text-slate-500">{t('exercises.description')}</p>

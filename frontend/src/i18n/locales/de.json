@@ -3,7 +3,6 @@
     "home": "Startseite",
     "courses": "Kurse",
     "blog": "Blog",
-    "blogBadge": "Demnächst",
     "logIn": "Anmelden",
     "signUp": "Registrieren",
     "profile": "Profil",
@@ -318,5 +317,15 @@
     "privacyPolicy": "Datenschutzerklärung",
     "cookiePolicy": "Cookie-Richtlinie",
     "allRightsReserved": "Alle Rechte vorbehalten."
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Tipps, Anleitungen und Einblicke für deine Lernreise.",
+    "featured": "Empfohlene Beiträge",
+    "allPosts": "Alle Beiträge",
+    "readMore": "Weiterlesen",
+    "noPosts": "Noch keine Blogbeiträge. Schau bald wieder vorbei!",
+    "backToBlog": "Zurück zum Blog",
+    "notFound": "Beitrag nicht gefunden"
   }
 }

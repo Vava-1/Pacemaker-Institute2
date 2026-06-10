@@ -3,7 +3,6 @@
     "home": "Ahabanza",
     "courses": "Amasomo",
     "blog": "Blog",
-    "blogBadge": "Mu Kanya Gato",
     "logIn": "Injira",
     "signUp": "Iyandikishe",
     "profile": "Ishusho",
@@ -318,5 +317,15 @@
     "automotive-mechanics": "Wige gusana no gufata neza imodoka",
     "ai-tools-professionals": "Tera imbere mu mwuga wawe ukoresheje ubuhanga bwa AI",
     "exam-preparation-support": "Witegure wizewe ibizamini byawe"
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Amakuru, inyoboro n'ubumenyi bwo kwihutisha urugendo rwawe rw'imyigishirize.",
+    "featured": "Inyandiko z'ibanze",
+    "allPosts": "Inyandiko zose",
+    "readMore": "Soma byinshi",
+    "noPosts": "Nta nyandiko ziriho. Garuka vuba!",
+    "backToBlog": "Garuka kuri Blog",
+    "notFound": "Inyandiko ntibonetse"
   }
 }

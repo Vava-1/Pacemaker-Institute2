@@ -5,7 +5,7 @@ import {
   notifications, categories, badges, userBadges, passwordResets,
   liveClasses, liveClassBookings, aiConversations, messages, chatRooms,
   leaderboardEntries, referrals, subscriptionPlans, userSubscriptions,
-  activityLogs,
+  activityLogs, blogPosts,
 } from "./schema";
 
 // ── USERS ──

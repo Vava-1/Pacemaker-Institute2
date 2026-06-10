@@ -9,6 +9,7 @@ import {
   Video, Calendar, Clock, Users, Play,
   Radio, CheckCircle,
 } from 'lucide-react'
+import { BackButton } from '@/components/BackButton'
 
 const mockClasses = [
   { id: 1, title: 'French Conversation Practice', instructor: 'Marie Dubois', scheduledAt: new Date(Date.now() + 3600000).toISOString(), duration: 60, status: 'live', students: 24, maxStudents: 50, category: 'Languages', thumbnail: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400' },
@@ -47,6 +48,7 @@ export default function LiveClasses() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+      <BackButton />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-brand-950 mb-2">{t('liveClasses.title')}</h1>
         <p className="text-slate-500">{t('liveClasses.description')}</p>

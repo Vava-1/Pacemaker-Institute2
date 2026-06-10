@@ -444,6 +444,7 @@ export const activityLogs = mysqlTable("activity_logs", {
 export const aiConversations = mysqlTable("ai_conversations", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  title: varchar("title", { length: 255 }),
   discipline: varchar("discipline", { length: 100 }).notNull(),
   messages: json("messages").$type<{ role: string; content: string }[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -463,6 +464,29 @@ export const testimonials = mysqlTable("testimonials", {
   isFeatured: boolean("is_featured").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ===== BLOG POSTS =====
+export const blogPosts = mysqlTable("blog_posts", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  title: varchar("title", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  excerpt: text("excerpt").notNull(),
+  content: text("content").notNull(),
+  image: text("image"),
+  authorName: varchar("author_name", { length: 255 }).notNull(),
+  authorAvatar: text("author_avatar"),
+  tags: json("tags").$type<string[]>(),
+  published: boolean("published").default(false).notNull(),
+  featured: boolean("featured").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+}, (t) => ({
+  slugIdx: uniqueIndex("blog_posts_slug_idx").on(t.slug),
+  publishedIdx: index("blog_posts_published_idx").on(t.published),
+}));
+
+export type BlogPost = typeof blogPosts.$inferSelect;
+export type InsertBlogPost = typeof blogPosts.$inferInsert;
 
 // ===== PLATFORM SETTINGS =====
 export const platformSettings = mysqlTable("platform_settings", {
