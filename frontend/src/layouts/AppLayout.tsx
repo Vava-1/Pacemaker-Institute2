@@ -10,7 +10,7 @@ export function AppLayout() {
   const location = useLocation()
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/forgot-password' || location.pathname === '/reset-password' || location.pathname === '/verify-email'
   const isAdminPage = location.pathname === '/admin'
-  const isFullPage = location.pathname === '/ai-tutor'
+  const isFullPage = location.pathname === '/ai-tutor' || location.pathname === '/chat'
   const showSidebar = user && !isAuthPage && !isAdminPage && !isFullPage && location.pathname !== '/'
 
   return (

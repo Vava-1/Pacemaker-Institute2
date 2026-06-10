@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -7,9 +6,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
 import { BackButton } from '@/components/BackButton'
 import {
-  MessageSquare, Send, Hash, Languages,
+  MessageSquare, Send, Languages,
   Wrench, Cake, Scissors, Brain, GraduationCap,
-  Search, MoreVertical, Camera, Phone, Video,
+  Search, MoreVertical, Phone,
   Pin, Reply, Trash2, Smile, Paperclip,
   Image, FileText, User, X, ArrowDown, Check,
   CheckCheck, Info,
@@ -188,8 +187,6 @@ function getSenderColor(id: number) {
 
 export default function Chat() {
   const { user } = useAuth()
-  const { data: rooms } = trpc.message.rooms.useQuery()
-
   const [sidebarSearch, setSidebarSearch] = useState('')
   const [activeRoom, setActiveRoom] = useState<number>(1)
   const [message, setMessage] = useState('')
@@ -266,13 +263,13 @@ export default function Chat() {
     inputRef.current?.focus()
   }
 
-  const handleDeleteMsg = (e: React.MouseEvent, msgId: number) => {
+  const handleDeleteMsg = (e: React.MouseEvent, _msgId: number) => {
     e.stopPropagation()
     toast.success('Message deleted for you')
     setSelectedMsgId(null)
   }
 
-  const handleReact = (msgId: number, emoji: string) => {
+  const handleReact = (_msgId: number, emoji: string) => {
     toast.success(`Reacted with ${emoji}`)
     setSelectedMsgId(null)
   }
@@ -304,7 +301,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className="h-full flex flex-col">
       <div className="px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0 flex items-center justify-between">
         <BackButton />
         <span className="text-xs text-gray-400">Pacemaker Community</span>
