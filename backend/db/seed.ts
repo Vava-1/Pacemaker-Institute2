@@ -334,7 +334,7 @@ async function seed() {
   const db = getDb();
 
   console.log("\nSeeding users...");
-  const admin = await upsertUser({
+  await upsertUser({
     email: SEED_CONFIG.admin.email,
     name: "Platform Admin",
     password: SEED_CONFIG.admin.password,

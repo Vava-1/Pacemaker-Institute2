@@ -9,7 +9,6 @@ import type { Context } from "hono";
 import { logger } from "./logger";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 
 let googleClient: OAuth2Client | null = null;

@@ -8,6 +8,12 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import Stripe from "stripe";
 import { appRouter } from "./router";
 import { createContext } from "./context";
+
+declare module "hono" {
+  interface ContextVariableMap {
+    requestId: string;
+  }
+}
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import { createGoogleAuthUrl, handleGoogleCallback } from "./lib/google-auth";

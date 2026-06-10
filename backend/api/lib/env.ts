@@ -30,6 +30,7 @@ const EnvSchema = z.object({
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).default("60000"),
   RATE_LIMIT_MAX: z.string().regex(/^\d+$/).default("100"),
+  OWNER_UNION_ID: z.string().optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -125,6 +126,7 @@ export const env = {
   smtpFromName: parsed.SMTP_FROM_NAME ?? "Pacemaker Institute",
   smtpFromEmail: parsed.SMTP_FROM_EMAIL ?? "noreply@pacemakerinstitute.com",
   errorWebhookUrl: parsed.ERROR_WEBHOOK_URL ?? "",
+  ownerUnionId: parsed.OWNER_UNION_ID ?? "",
   logLevel: parsed.LOG_LEVEL,
   sentryDsn: parsed.SENTRY_DSN ?? "",
   rateLimitWindowMs: parseInt(parsed.RATE_LIMIT_WINDOW_MS),

@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { env } from "./env";
 import { logger } from "./logger";
 import { getDb } from "../queries/connection";
-import { payments, enrollments, courses, subscriptions } from "@db/schema";
+import { enrollments, courses, userSubscriptions } from "@db/schema";
 import { sendEnrollmentConfirmationEmail } from "./mailer";
 import { users } from "@db/schema";
 
@@ -21,7 +21,7 @@ webhookRouter.post("/stripe", async (c) => {
     return c.json({ success: false, error: "Stripe is not configured" }, 500);
   }
 
-  const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+  const stripe = new Stripe(env.stripeSecretKey);
   const body = await c.req.text();
 
   if (!body) {
@@ -84,13 +84,14 @@ webhookRouter.post("/stripe", async (c) => {
 
         if (session.metadata?.subscriptionType) {
           const db = getDb();
-          await db.insert(subscriptions).values({
+          await db.insert(userSubscriptions).values({
             userId: parseInt(userId),
+            planId: 0,
             stripeSubscriptionId: session.subscription as string,
             plan: session.metadata.subscriptionType,
             status: "active",
-            currentPeriodStart: new Date(),
-            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            startedAt: new Date(),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           });
           logger.info("Subscription created from checkout", { userId, subscriptionType: session.metadata.subscriptionType });
         }
@@ -99,28 +100,32 @@ webhookRouter.post("/stripe", async (c) => {
 
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.subscription) {
+        const rawSubId = invoice.parent?.subscription_details?.subscription;
+        const subId = typeof rawSubId === "string" ? rawSubId : rawSubId?.id;
+        if (subId) {
           const db = getDb();
-          await db.update(subscriptions)
+          await db.update(userSubscriptions)
             .set({
               status: "active",
-              currentPeriodStart: new Date(invoice.period_start * 1000),
-              currentPeriodEnd: new Date(invoice.period_end * 1000),
+              startedAt: new Date(invoice.period_start * 1000),
+              expiresAt: new Date(invoice.period_end * 1000),
             })
-            .where(eq(subscriptions.stripeSubscriptionId, invoice.subscription as string));
-          logger.info("Subscription payment succeeded", { subscriptionId: invoice.subscription });
+            .where(eq(userSubscriptions.stripeSubscriptionId, subId));
+          logger.info("Subscription payment succeeded", { subscriptionId: subId });
         }
         break;
       }
 
       case "invoice.payment_failed": {
         const failedInvoice = event.data.object as Stripe.Invoice;
-        if (failedInvoice.subscription) {
+        const failedRaw = failedInvoice.parent?.subscription_details?.subscription;
+        const failedSubId = typeof failedRaw === "string" ? failedRaw : failedRaw?.id;
+        if (failedSubId) {
           const db = getDb();
-          await db.update(subscriptions)
+          await db.update(userSubscriptions)
             .set({ status: "past_due" })
-            .where(eq(subscriptions.stripeSubscriptionId, failedInvoice.subscription as string));
-          logger.warn("Subscription payment failed", { subscriptionId: failedInvoice.subscription });
+            .where(eq(userSubscriptions.stripeSubscriptionId, failedSubId));
+          logger.warn("Subscription payment failed", { subscriptionId: failedSubId });
         }
         break;
       }
@@ -128,9 +133,9 @@ webhookRouter.post("/stripe", async (c) => {
       case "customer.subscription.deleted": {
         const deletedSub = event.data.object as Stripe.Subscription;
         const db = getDb();
-        await db.update(subscriptions)
+        await db.update(userSubscriptions)
           .set({ status: "cancelled" })
-          .where(eq(subscriptions.stripeSubscriptionId, deletedSub.id));
+          .where(eq(userSubscriptions.stripeSubscriptionId, deletedSub.id));
         logger.info("Subscription cancelled", { subscriptionId: deletedSub.id });
         break;
       }
