@@ -18,7 +18,7 @@
   "hero": {
     "badge": "Nouveaux cours ajoutés chaque mois",
     "title": "Libérez Votre Avenir avec des Compétences Qui Comptent",
-    "subtitle": "Maîtrisez les langues, les compétences techniques et l'IA — à tout moment, n'importe où. Rejoignez des milliers d'apprenants qui construisent de vraies carrières.",
+    "subtitle": "Bienvenue dans une nouvelle génération d'apprentissage où les compétences pratiques rencontrent les opportunités du monde réel. Que vous souhaitiez maîtriser des langues, bâtir une carrière ou perfectionner vos compétences professionnelles, nous fournissons tout ce dont vous avez besoin en un seul endroit.",
     "exploreCourses": "Explorer les Cours",
     "startLearning": "Commencer Gratuitement"
   },
@@ -48,6 +48,10 @@
       "Formation axée sur la carrière",
       "Abordable et accessible à tous"
     ]
+  },
+  "impact": {
+    "title": "Notre Impact",
+    "subtitle": "Des chiffres réels d'apprenants réels"
   },
   "featuredCourses": {
     "title": "Cours Recommandés",

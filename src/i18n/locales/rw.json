@@ -18,7 +18,7 @@
   "hero": {
     "badge": "Amasomo mashya yongerwa buri kwezi",
     "title": "Fungura Ejo Hazo Hawe n'Ubumenyi Bukomeye",
-    "subtitle": "Boresha indimi, ubumenyi bwa tekiniki, na AI — igihe icyo aricyo cyose, ahantu hose. Injira mu bihumbi by'abanyeshuri bubaka imirimo nyayo.",
+    "subtitle": "Murakaza neza mu gisekuru gishya cyo kwiga aho ubumenyi bufatika buhura n'amahirwe nyayo. Waba ushaka gutunga indimi, kubaka umwuga, cyangwa kuzamura ubumenyi bwawe bw'umwuga, tugutangira ibyo wese ukeneye ahantu hamwe.",
     "exploreCourses": "Reba Amasomo",
     "startLearning": "Tangira Kwiga Kubuntu"
   },
@@ -48,6 +48,10 @@
       "Amahugurwa yibanze ku mwuga",
       "Ahendutse kandi aboneka kuri buri wese"
     ]
+  },
+  "impact": {
+    "title": "Ingaruka Zacu",
+    "subtitle": "Imibare nyayo ivuye ku banyeshuri nyabo"
   },
   "featuredCourses": {
     "title": "Amasomo Y'ibanze",

@@ -223,7 +223,7 @@ export default function Home() {
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight mb-3 md:mb-4 min-h-[2.5em] md:min-h-[3em]">
                 <TypewriterText text={t('hero.title')} gradient="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent" />
               </h1>
-              <p className="text-sm sm:text-base md:text-lg text-slate-400 leading-relaxed mb-6 md:mb-8 max-w-lg mt-4 md:mt-6">
+              <p className="text-sm sm:text-base text-slate-300 leading-relaxed mb-6 md:mb-8 max-w-xl mt-4 md:mt-6">
                 {t('hero.subtitle')}
               </p>
               <div className="flex flex-wrap gap-3 md:gap-4">
@@ -240,46 +240,66 @@ export default function Home() {
               <div className="hero-image-glow" />
               <div className="hero-image-glass" />
               <img src="/leftside.webp" alt="" className="hero-image" />
+              <div className="mt-4 text-center font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400" style={{ fontSize: 'clamp(1.25rem, 2.2vw, 2rem)', letterSpacing: '0.15em' }}>
+                Learn. Build. Succeed.
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ───── Stats Counter Bar ───── */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 py-14 md:py-20">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[1px] bg-gradient-to-r from-transparent via-blue-400/50 to-transparent" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-white/5 rounded-2xl overflow-hidden border border-white/10">
-            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                {platformStats ? <AnimatedCounter value={String(platformStats.totalStudents)} /> : "—"}
+      <section className="py-10 md:py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8 md:mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-brand-950">{t('impact.title')}</h2>
+            <p className="text-sm md:text-base text-slate-500 mt-2">{t('impact.subtitle')}</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+            <div className="group relative bg-gradient-to-br from-green-100 to-emerald-50 rounded-xl border border-green-200 p-5 md:p-6 text-center hover:border-green-300 hover:shadow-md hover:shadow-green-100 transition-all duration-300">
+              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
+                <Users className="h-5 w-5 text-green-600" />
               </div>
-              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Students</div>
+              <div className="text-2xl md:text-3xl font-bold text-brand-950">
+                {platformStats ? <AnimatedCounter value={String(platformStats.totalStudents)} suffix="+" /> : "—"}
+              </div>
+              <div className="mt-1 text-slate-500 text-xs md:text-sm">Active Students</div>
             </div>
-            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+            <div className="group relative bg-gradient-to-br from-emerald-100 to-green-50 rounded-xl border border-emerald-200 p-5 md:p-6 text-center hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 transition-all duration-300">
+              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
+                <GraduationCap className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-brand-950">
                 {platformStats ? <AnimatedCounter value={String(platformStats.totalInstructors)} /> : "—"}
               </div>
-              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Instructors</div>
+              <div className="mt-1 text-slate-500 text-xs md:text-sm">Expert Instructors</div>
             </div>
-            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+            <div className="group relative bg-gradient-to-br from-green-100 to-teal-50 rounded-xl border border-green-200 p-5 md:p-6 text-center hover:border-green-300 hover:shadow-md hover:shadow-green-100 transition-all duration-300">
+              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
+                <BookOpen className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-brand-950">
                 {platformStats ? <AnimatedCounter value={String(platformStats.totalCourses)} suffix="+" /> : "—"}
               </div>
-              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Courses</div>
+              <div className="mt-1 text-slate-500 text-xs md:text-sm">Available Courses</div>
             </div>
-            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
+            <div className="group relative bg-gradient-to-br from-emerald-100 to-teal-50 rounded-xl border border-emerald-200 p-5 md:p-6 text-center hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 transition-all duration-300">
+              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="text-2xl md:text-3xl font-bold text-brand-950">
                 {platformStats ? <AnimatedCounter value={String(platformStats.completedCourses)} suffix="+" /> : "—"}
               </div>
-              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Completed</div>
+              <div className="mt-1 text-slate-500 text-xs md:text-sm">Courses Completed</div>
             </div>
-            <div className="bg-slate-900/80 backdrop-blur-sm p-6 md:p-8 text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                {platformStats ? `${platformStats.averageRating}/5` : "—"}
+            <div className="group relative bg-gradient-to-br from-green-100 to-emerald-50 rounded-xl border border-green-200 p-5 md:p-6 text-center hover:border-green-300 hover:shadow-md hover:shadow-green-100 transition-all duration-300">
+              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
+                <Star className="h-5 w-5 text-green-600" />
               </div>
-              <div className="mt-1.5 text-blue-300/80 text-xs md:text-sm font-medium tracking-wide uppercase">Rating</div>
+              <div className="text-2xl md:text-3xl font-bold text-brand-950">
+                {platformStats ? `${platformStats.averageRating}` : "—"}
+              </div>
+              <div className="mt-1 text-slate-500 text-xs md:text-sm">Average Rating</div>
             </div>
           </div>
         </div>

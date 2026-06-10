@@ -18,7 +18,7 @@
   "hero": {
     "badge": "Neue Kurse monatlich hinzugefügt",
     "title": "Entfalte deine Zukunft mit Fähigkeiten, die zählen",
-    "subtitle": "Meistere Sprachen, technische Fähigkeiten und KI — jederzeit und überall. Tausende Lernende bauen echte Karrieren auf.",
+    "subtitle": "Willkommen in einer neuen Generation des Lernens wo praktische Fähigkeiten auf reale Chancen treffen. Ob Sie Sprachen meistern, eine Karriere aufbauen oder Ihre beruflichen Fähigkeiten verbessern möchten, wir bieten alles, was Sie brauchen, an einem Ort.",
     "exploreCourses": "Kurse entdecken",
     "startLearning": "Kostenlos starten"
   },
@@ -48,6 +48,10 @@
       "Karriereorientierte Ausbildung",
       "Bezahlbar und für alle zugänglich"
     ]
+  },
+  "impact": {
+    "title": "Unsere Wirkung",
+    "subtitle": "Echte Zahlen von echten Lernenden"
   },
   "featuredCourses": {
     "title": "Empfohlene Kurse",

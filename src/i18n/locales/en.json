@@ -18,7 +18,7 @@
   "hero": {
     "badge": "New courses added monthly",
     "title": "Unlock Your Future with Skills That Matter",
-    "subtitle": "Master languages, technical skills, and AI — anytime, anywhere. Join thousands of learners building real careers.",
+    "subtitle": "Welcome to a new generation of learning where practical skills meet real-world opportunities. Whether you want to master languages, build a career, or upgrade your professional skills, we provide everything you need in one place.",
     "exploreCourses": "Explore Courses",
     "startLearning": "Start Learning Free"
   },
@@ -48,6 +48,10 @@
       "Career-focused training",
       "Affordable and accessible for everyone"
     ]
+  },
+  "impact": {
+    "title": "Our Impact",
+    "subtitle": "Real numbers from real learners"
   },
   "featuredCourses": {
     "title": "Featured Courses",

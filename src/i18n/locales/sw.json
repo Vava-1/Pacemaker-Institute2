@@ -18,7 +18,7 @@
   "hero": {
     "badge": "Kozi mpya zimeongezwa kila mwezi",
     "title": "Fungua Mustakabali Wako kwa Ujuzi Unaofaa",
-    "subtitle": "Boresha lugha, ujuzi wa kiufundi, na AI — wakati wowote, popote. Jiunge na maelfu ya wanafunzi wanaojenga kazi halisi.",
+    "subtitle": "Karibu kwenye kizazi kipya cha kujifunza ambapo ujuzi wa vitendo hukutana na fursa za ulimwengu halisi. Iwe unataka kumudu lugha, kujenga taaluma, au kuboresha ujuzi wako wa kitaaluma, tunatoa kila kitu unachohitaji mahala pamoja.",
     "exploreCourses": "Chunguza Kozi",
     "startLearning": "Anza Kujifunza Bure"
   },
@@ -48,6 +48,10 @@
       "Mafunzo yanayolenga kazi",
       "Nafuu na inayopatikana kwa kila mtu"
     ]
+  },
+  "impact": {
+    "title": "Athari Yetu",
+    "subtitle": "Nambari halisi kutoka kwa wanafunzi halisi"
   },
   "featuredCourses": {
     "title": "Kozi Zilizojulikana",
