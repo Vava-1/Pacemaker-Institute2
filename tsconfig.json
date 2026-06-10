@@ -16,12 +16,12 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@api/*": ["./api/*"],
-      "@db/*": ["./db/*"],
+      "@/*": ["./frontend/src/*"],
+      "@api/*": ["./backend/api/*"],
+      "@db/*": ["./backend/db/*"],
       "@contracts/*": ["./contracts/*"]
     },
     "types": ["vitest/globals"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"]
+  "include": ["frontend/src/**/*.ts", "frontend/src/**/*.tsx", "frontend/tests/**/*.ts"]
 }

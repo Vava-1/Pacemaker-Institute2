@@ -1,2 +1,2 @@
-export type * from "../db/schema";
+export type * from "../backend/db/schema";
 export * from "./errors";

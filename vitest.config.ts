@@ -7,26 +7,26 @@ export default defineConfig({
   root: templateRoot,
   resolve: {
     alias: {
-      "@": path.resolve(templateRoot, "src"),
-      "@api": path.resolve(templateRoot, "api"),
-      "@db": path.resolve(templateRoot, "db"),
+      "@": path.resolve(templateRoot, "frontend/src"),
+      "@api": path.resolve(templateRoot, "backend/api"),
+      "@db": path.resolve(templateRoot, "backend/db"),
       "@contracts": path.resolve(templateRoot, "contracts"),
     },
   },
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
+    include: ["frontend/tests/**/*.test.ts", "frontend/tests/**/*.spec.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
       exclude: [
         "node_modules",
-        "tests",
+        "frontend/tests",
         "**/*.d.ts",
         "**/*.config.*",
-        "db/migrations",
-        "db/seed.ts",
+        "backend/db/migrations",
+        "backend/db/seed.ts",
       ],
       thresholds: {
         statements: 60,
@@ -35,7 +35,7 @@ export default defineConfig({
         lines: 60,
       },
     },
-    setupFiles: ["./tests/setup.ts"],
+    setupFiles: ["./frontend/tests/setup.ts"],
     testTimeout: 10000,
     hookTimeout: 10000,
   },

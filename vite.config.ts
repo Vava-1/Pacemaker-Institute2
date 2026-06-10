@@ -6,16 +6,17 @@ import { defineConfig } from "vite";
 import { inspectAttr } from "kimi-plugin-inspect-react";
 
 export default defineConfig({
+  root: "frontend",
   plugins: [
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
+    devServer({ entry: "backend/api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
     inspectAttr(),
     react(),
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@api": path.resolve(__dirname, "./api"),
-      "@db": path.resolve(__dirname, "./db"),
+      "@": path.resolve(__dirname, "./frontend/src"),
+      "@api": path.resolve(__dirname, "./backend/api"),
+      "@db": path.resolve(__dirname, "./backend/db"),
       "@contracts": path.resolve(__dirname, "./contracts"),
     },
   },

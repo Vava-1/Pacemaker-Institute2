@@ -11,7 +11,7 @@ module.exports = {
     "plugin:react-hooks/recommended",
     "plugin:react-refresh/recommended",
   ],
-  ignorePatterns: ["dist", ".eslintrc.cjs", "node_modules", "db/migrations"],
+  ignorePatterns: ["dist", ".eslintrc.cjs", "node_modules", "backend/db/migrations"],
   parser: "@typescript-eslint/parser",
   plugins: ["@typescript-eslint", "react-refresh"],
   rules: {
