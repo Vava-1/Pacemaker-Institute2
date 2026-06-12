@@ -28,7 +28,7 @@ export function clearAuthToken() {
   localStorage.removeItem("refresh_token");
 }
 
-const queryClient = new QueryClient();
+export const queryClient = new QueryClient();
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({

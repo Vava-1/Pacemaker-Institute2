@@ -117,7 +117,7 @@ export default function Courses() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(searchParams.get('search') ?? '')
   const categoryFilter = searchParams.get('category') ?? undefined
   const subcategoryFilter = searchParams.get('subcategory') ?? undefined
   const focusFilter = searchParams.get('focus') ?? undefined
@@ -327,7 +327,7 @@ export default function Courses() {
                 <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {course.totalStudents}</span>
               </div>
               <span className="font-bold text-blue-600 text-sm">
-                {Number(course.price) === 0 ? t('courses.free') : `$${course.price}`}
+                {Number(course.price) === 0 ? t('courses.free') : `${Number(course.price).toLocaleString()} Frw`}
               </span>
             </div>
           </CardContent>

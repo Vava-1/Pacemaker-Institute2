@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { courses, modules, lessons, enrollments, categories, users } from "../../db/schema";
-import { eq, and, like, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, like, desc, sql, inArray } from "drizzle-orm";
 
 export const courseRouter = createRouter({
   publicStats: publicQuery.query(async () => {
@@ -39,6 +39,7 @@ export const courseRouter = createRouter({
         thumbnail: courses.thumbnail,
         price: courses.price,
         originalPrice: courses.originalPrice,
+        currency: courses.currency,
         rating: courses.rating,
         totalStudents: courses.totalStudents,
         totalLessons: courses.totalLessons,
@@ -70,7 +71,14 @@ export const courseRouter = createRouter({
         conditions.push(eq(courses.level, input.level as any));
       }
       if (input?.search) {
-        conditions.push(like(courses.title, `%${input.search}%`));
+        const term = `%${input.search}%`;
+        conditions.push(
+          or(
+            like(courses.title, term),
+            like(courses.shortDescription, term),
+            sql`JSON_SEARCH(${courses.tags}, 'one', ${input.search}) IS NOT NULL`,
+          )
+        );
       }
       if (input?.featured) {
         conditions.push(eq(courses.isFeatured, true));
@@ -97,6 +105,7 @@ export const courseRouter = createRouter({
         previewVideo: courses.previewVideo,
         price: courses.price,
         originalPrice: courses.originalPrice,
+        currency: courses.currency,
         rating: courses.rating,
         totalStudents: courses.totalStudents,
         totalLessons: courses.totalLessons,

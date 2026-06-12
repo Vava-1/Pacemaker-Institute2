@@ -15,6 +15,7 @@ import { paymentRouter } from "./routers/payment-router";
 import { lessonRouter } from "./routers/lesson-router";
 import { certificateRouter } from "./routers/certificate-router";
 import { blogRouter } from "./routers/blog-router";
+import { searchRouter } from "./routers/search-router";
 
 export { createRouter, publicProcedure, protectedProcedure, instructorProcedure, adminProcedure };
 
@@ -36,6 +37,7 @@ export const appRouter = createRouter({
   admin: adminRouter,
   payment: paymentRouter,
   blog: blogRouter,
+  search: searchRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,4 +1,4 @@
-import { trpc, clearAuthToken } from "@/providers/trpc";
+import { trpc, clearAuthToken, queryClient } from "@/providers/trpc";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 
@@ -15,8 +15,6 @@ export function useAuth(options?: UseAuthOptions) {
 
   const navigate = useNavigate();
 
-  const utils = trpc.useUtils();
-
   const {
     data: user,
     isLoading,
@@ -29,9 +27,9 @@ export function useAuth(options?: UseAuthOptions) {
 
   const logout = useCallback(() => {
     clearAuthToken();
-    utils.invalidate();
+    queryClient.clear();
     navigate(redirectPath);
-  }, [utils, navigate, redirectPath]);
+  }, [queryClient, navigate, redirectPath]);
 
   useEffect(() => {
     if (redirectOnUnauthenticated && !isLoading && !user) {

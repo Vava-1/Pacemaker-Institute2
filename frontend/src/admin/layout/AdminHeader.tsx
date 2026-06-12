@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth'
 import { useNavigate, useLocation } from 'react-router'
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, Bell, Search, ChevronDown } from 'lucide-react'
+import { LogOut, Bell, Search, ChevronDown, ExternalLink } from 'lucide-react'
 
 const breadcrumbMap: Record<string, string> = {
   '/admin': 'Dashboard',
@@ -11,6 +11,12 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/finance': 'Finance',
   '/admin/analytics': 'Analytics',
   '/admin/settings': 'Settings',
+  '/admin/certificates': 'Certificates',
+  '/admin/badges': 'Badges',
+  '/admin/activity-log': 'Activity Log',
+  '/admin/blog': 'Blog',
+  '/admin/live-classes': 'Live Classes',
+  '/admin/communications': 'Communications',
 }
 
 export function AdminHeader() {
@@ -51,8 +57,16 @@ export function AdminHeader() {
         </div>
       </div>
 
-      {/* Right: Notifications + User */}
-      <div className="flex items-center gap-4">
+      {/* Right: View Site + Notifications + User */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => window.open('/', '_blank')}
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-teal-700 transition-colors"
+          title="View site as regular user"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">View Site</span>
+        </button>
         <button className="relative rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" aria-label="Notifications">
           <Bell className="h-5 w-5" />
           <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">3</span>

@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { createRouter, authedQuery } from "../trpc";
+import { createRouter, authedQuery, publicProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
 import { lessons, enrollments, lessonProgress } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const lessonRouter = createRouter({
-  getLessonContent: authedQuery
+  getLessonContent: publicProcedure
     .input(z.object({ lessonId: z.number() }))
     .query(async ({ input, ctx }) => {
       const db = getDb();
@@ -18,13 +18,23 @@ export const lessonRouter = createRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Lesson not found" });
       }
 
+      // Free lessons are accessible to everyone (no auth required)
+      if (lesson.isFree) {
+        return lesson;
+      }
+
+      // Paid lessons require auth
+      if (!ctx.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Please log in to access this lesson" });
+      }
+
       // Check enrollment and payment
       const enrollmentCheck = await db.select().from(enrollments)
         .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, lesson.courseId)))
         .limit(1);
 
       if (enrollmentCheck.length === 0) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You must be enrolled to view this lesson" });
+        throw new TRPCError({ code: "FORBIDDEN", message: "You must be enrolled in this course to view this lesson" });
       }
 
       const enrollment = enrollmentCheck[0];

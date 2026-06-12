@@ -19,8 +19,8 @@ export function Footer() {
           </p>
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2"><Mail className="h-3 w-3 text-blue-400" /> info@pacemakerinstitute.rw</div>
-            <div className="flex items-center gap-2"><Phone className="h-3 w-3 text-blue-400" /> +250 788 987 631</div>
-            <div className="flex items-center gap-2"><MapPin className="h-3 w-3 text-blue-400" /> Kigali, Rwanda</div>
+            <div className="flex items-center gap-2"><Phone className="h-3 w-3 text-blue-400" /> +250 786 053 720</div>
+            <a href="https://maps.google.com/?q=Centenary+House+8+KN+4+Ave+Kigali+Rwanda" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-blue-400 transition-colors"><MapPin className="h-3 w-3 text-blue-400" /> Centenary House, 8 KN 4 Ave, Kigali (3rd Floor)</a>
           </div>
         </div>
 

@@ -29,6 +29,7 @@ const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const LessonPlayer = lazy(() => import('./pages/LessonPlayer'))
 const CertificateView = lazy(() => import('./pages/CertificateView'))
 
+const SearchResults = lazy(() => import('./pages/SearchResults'))
 const Blog = lazy(() => import('./pages/Blog'))
 const BlogPost = lazy(() => import('./pages/BlogPost'))
 const NotFound = lazy(() => import('./pages/NotFound'))
@@ -45,6 +46,12 @@ const AdminFinance = lazy(() => import('./admin/pages/Finance'))
 const AdminSettings = lazy(() => import('./admin/pages/Settings'))
 const AdminCourseEditor = lazy(() => import('./admin/pages/CourseEditor'))
 const AdminLessonEditor = lazy(() => import('./admin/pages/LessonEditor'))
+const AdminCertificates = lazy(() => import('./admin/pages/Certificates'))
+const AdminBadges = lazy(() => import('./admin/pages/Badges'))
+const AdminActivityLog = lazy(() => import('./admin/pages/ActivityLog'))
+const AdminBlogManager = lazy(() => import('./admin/pages/BlogManager'))
+const AdminLiveClasses = lazy(() => import('./admin/pages/LiveClassesManager'))
+const AdminCommunications = lazy(() => import('./admin/pages/Communications'))
 
 export default function App() {
   return (
@@ -73,6 +80,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/search" element={<SearchResults />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/terms" element={<Terms />} />
@@ -92,6 +100,12 @@ export default function App() {
           <Route path="/admin/courses/:id/edit" element={<AdminCourseEditor />} />
           <Route path="/admin/courses/:courseId/lessons/new" element={<AdminLessonEditor />} />
           <Route path="/admin/courses/:courseId/lessons/:lessonId" element={<AdminLessonEditor />} />
+          <Route path="/admin/certificates" element={<AdminCertificates />} />
+          <Route path="/admin/badges" element={<AdminBadges />} />
+          <Route path="/admin/activity-log" element={<AdminActivityLog />} />
+          <Route path="/admin/blog" element={<AdminBlogManager />} />
+          <Route path="/admin/live-classes" element={<AdminLiveClasses />} />
+          <Route path="/admin/communications" element={<AdminCommunications />} />
         </Route>
       </Routes>
     </Suspense>

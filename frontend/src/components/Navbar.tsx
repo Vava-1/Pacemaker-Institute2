@@ -18,7 +18,7 @@ import { useState } from 'react'
 export function Navbar() {
   const { t } = useTranslation()
 
-  const navLinks = [
+  const navLinks: { label: string; href: string; badge?: string }[] = [
     { label: t('nav.home'), href: '/' },
     { label: t('nav.courses'), href: '/courses' },
     { label: t('nav.blog'), href: '/blog' },
@@ -83,6 +83,7 @@ export function Navbar() {
               <div className="flex items-center gap-1 md:gap-2">
                 <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   placeholder={t('nav.searchPlaceholder')} className="w-32 sm:w-48 h-7 md:h-8 text-sm" autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter' && searchQuery.trim()) { navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`); setSearchOpen(false); setSearchQuery('') } }}
                 />
                 <Button variant="ghost" size="icon" className="h-7 md:h-8 w-7 md:w-8" onClick={() => { setSearchOpen(false); setSearchQuery('') }}>
                   <X className="h-3.5 w-3.5 md:h-4 md:w-4" />

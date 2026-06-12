@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft, Lock } from 'lucide-react'
+import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function CourseDetail() {
@@ -142,17 +142,17 @@ export default function CourseDetail() {
 
               <div className="flex items-end gap-2 mb-4">
                 <span className="text-3xl font-bold">
-                  {Number(course.price) === 0 ? 'Free' : `$${course.price}`}
+                  {Number(course.price) === 0 ? 'Free' : `${Number(course.price).toLocaleString()} Frw`}
                 </span>
                 {course.originalPrice && Number(course.originalPrice) > Number(course.price) && (
-                  <span className="text-lg text-slate-400 line-through mb-1">${course.originalPrice}</span>
+                  <span className="text-lg text-slate-400 line-through mb-1">{Number(course.originalPrice).toLocaleString()} Frw</span>
                 )}
               </div>
 
               {!user ? (
-                <Link to="/login">
+                <Link to={`/courses/${slug}/lessons/${course.lessons?.[0]?.id ?? ''}`}>
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
-                    <Lock className="mr-2 h-4 w-4" /> Login to Enroll
+                    <Play className="mr-2 h-4 w-4" /> Start Free Preview
                   </Button>
                 </Link>
               ) : isEnrolled && isPaid ? (
@@ -162,7 +162,7 @@ export default function CourseDetail() {
               ) : isEnrolled && !isPaid ? (
                 <Link to={`/checkout?courseId=${course.id}`}>
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
-                    Pay Now — ${course.price}
+                    Pay Now — {Number(course.price).toLocaleString()} Frw
                   </Button>
                 </Link>
               ) : isFree ? (

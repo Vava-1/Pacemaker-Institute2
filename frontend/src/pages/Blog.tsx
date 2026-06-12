@@ -17,7 +17,7 @@ export default function Blog() {
   const { data: posts, isLoading } = trpc.blog.list.useQuery({ tag: selectedTag })
   const { data: featuredPosts } = trpc.blog.featured.useQuery()
 
-  const allTags = [...new Set((posts ?? []).flatMap((p) => p.tags ?? []))].sort()
+  const allTags = [...new Set<string>((posts ?? []).flatMap((p: any) => p.tags ?? []))].sort()
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -30,7 +30,7 @@ export default function Blog() {
         <section className="mb-16">
           <h2 className="text-xl font-semibold text-slate-900 mb-6">{t('blog.featured')}</h2>
           <div className="grid md:grid-cols-2 gap-6">
-            {featuredPosts.slice(0, 2).map((post) => (
+            {featuredPosts.slice(0, 2).map((post: any) => (
               <Link key={post.id} to={`/blog/${post.slug}`}>
                 <Card className="group border-slate-200/80 hover:border-blue-200 hover:shadow-md transition-all overflow-hidden h-full">
                   {post.image && (
@@ -61,7 +61,7 @@ export default function Blog() {
         >
           {t('blog.allPosts')}
         </Badge>
-        {allTags.map((tag) => (
+        {allTags.map((tag: string) => (
           <Badge
             key={tag}
             variant={selectedTag === tag ? 'default' : 'outline'}
@@ -79,7 +79,7 @@ export default function Blog() {
         </div>
       ) : posts && posts.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {posts.map((post) => (
+          {posts.map((post: any) => (
             <Link key={post.id} to={`/blog/${post.slug}`}>
               <Card className="group border-slate-200/80 hover:border-blue-200 hover:shadow-md transition-all overflow-hidden h-full flex flex-col">
                 {post.image && (
@@ -96,7 +96,7 @@ export default function Blog() {
                   <p className="text-sm text-slate-500 line-clamp-2 flex-1">{post.excerpt}</p>
                   {post.tags && post.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-3">
-                      {post.tags.map((tag) => (
+                      {post.tags.map((tag: string) => (
                         <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
                       ))}
                     </div>

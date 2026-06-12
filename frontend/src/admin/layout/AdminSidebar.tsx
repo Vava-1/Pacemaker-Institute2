@@ -4,13 +4,15 @@ import { sidebarModules, hasPermission } from '@/admin/rbac'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard, Users, BookOpen, Tags, DollarSign, BarChart3,
-  Settings, Shield, ChevronLeft, ChevronRight,
+  Settings, Shield, ChevronLeft, ChevronRight, Award, Medal,
+  Video, FileText, Activity, MessageSquare,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useMemo } from 'react'
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard, Users, BookOpen, Tags, DollarSign, BarChart3, Settings,
+  Award, Medal, Video, FileText, Activity, MessageSquare,
 }
 
 export function AdminSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {

@@ -55,7 +55,7 @@ export default function Finance() {
     columnHelper.accessor('amount', {
       header: 'Amount',
       cell: ({ getValue }) => (
-        <span className="text-sm font-semibold text-slate-700">${Number(getValue()).toFixed(2)}</span>
+        <span className="text-sm font-semibold text-slate-700">{Number(getValue()).toLocaleString()} Frw</span>
       ),
     }) as ColumnDef<Payment>,
     columnHelper.accessor('status', {

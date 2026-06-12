@@ -16,7 +16,7 @@ export const blogRouter = createRouter({
         .where(condition)
         .orderBy(desc(blogPosts.createdAt));
       if (input?.tag) {
-        return posts.filter((p) => p.tags?.includes(input.tag));
+        return posts.filter((p: any) => p.tags?.includes(input.tag));
       }
       return posts;
     }),

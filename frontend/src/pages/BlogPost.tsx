@@ -61,7 +61,7 @@ export default function BlogPost() {
 
       {post.tags && post.tags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-8">
-          {post.tags.map((tag) => (
+          {post.tags.map((tag: string) => (
             <Link key={tag} to={`/blog?tag=${tag}`}>
               <Badge variant="secondary" className="text-xs">
                 <Tag className="h-3 w-3 mr-1" />{tag}
@@ -72,7 +72,7 @@ export default function BlogPost() {
       )}
 
       <div className="prose prose-slate max-w-none">
-        {post.content.split('\n').map((paragraph, i) => (
+        {post.content.split('\n').map((paragraph: string, i: number) => (
           paragraph.trim() ? <p key={i} className="text-slate-600 leading-relaxed mb-4">{paragraph}</p> : null
         ))}
       </div>

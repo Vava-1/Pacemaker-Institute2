@@ -402,7 +402,7 @@ export default function Home() {
                           <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {course.totalStudents}</span>
                         </div>
                         <span className="font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent text-sm">
-                          {Number(course.price) === 0 ? 'Free' : `$${course.price}`}
+                          {Number(course.price) === 0 ? 'Free' : `${Number(course.price).toLocaleString()} Frw`}
                         </span>
                       </div>
                     </CardContent>

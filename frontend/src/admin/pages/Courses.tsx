@@ -72,7 +72,7 @@ export default function Courses() {
       cell: ({ getValue }) => {
         const price = getValue()
         return price !== null && price !== 0
-          ? <span className="text-sm font-medium text-slate-700">${Number(price).toFixed(2)}</span>
+          ? <span className="text-sm font-medium text-slate-700">{Number(price).toLocaleString()} Frw</span>
           : <span className="text-xs font-medium text-green-600 bg-green-50 rounded-full px-2 py-0.5">Free</span>
       },
     }) as ColumnDef<CourseRow>,

@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { createRouter, adminQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
-import { 
+import {
   users, courses, enrollments, payments, platformSettings, categories,
-  modules, lessons
+  modules, lessons, aiConversations, certificates, activityLogs,
+  badges, reviews, testimonials, blogPosts,
+  liveClasses, exerciseAttempts
 } from "@db/schema";
-import { desc, asc, sql, eq, and } from "drizzle-orm";
+import { desc, asc, sql, eq, and, gte } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { hashPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -13,14 +15,70 @@ import { logger } from "../lib/logger";
 export const adminRouter = createRouter({
   stats: adminQuery.query(async () => {
     const db = getDb();
-    const totalUsers = await db.select({ count: sql<number>`count(*)` }).from(users);
-    const totalCourses = await db.select({ count: sql<number>`count(*)` }).from(courses);
-    const totalEnrollments = await db.select({ count: sql<number>`count(*)` }).from(enrollments);
+    const [totalUsers] = await db.select({ count: sql<number>`count(*)` }).from(users);
+    const [totalCourses] = await db.select({ count: sql<number>`count(*)` }).from(courses);
+    const [totalEnrollments] = await db.select({ count: sql<number>`count(*)` }).from(enrollments);
+    const [totalCertificates] = await db.select({ count: sql<number>`count(*)` }).from(certificates);
+    const [onlineUsers] = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.isOnline, true));
+    const [aiChats] = await db.select({ count: sql<number>`count(*)` }).from(aiConversations);
+    const [reviewsCount] = await db.select({ count: sql<number>`count(*)` }).from(reviews);
+    const [testimonialsCount] = await db.select({ count: sql<number>`count(*)` }).from(testimonials);
+    const [liveClassesCount] = await db.select({ count: sql<number>`count(*)` }).from(liveClasses);
+    const [blogPostsCount] = await db.select({ count: sql<number>`count(*)` }).from(blogPosts);
+    const [badgesCount] = await db.select({ count: sql<number>`count(*)` }).from(badges);
     
     const revenueResult = await db.select({ total: sql<number>`SUM(amount)` })
       .from(payments).where(eq(payments.status, "completed"));
     
     const totalRevenueCents = revenueResult[0]?.total || 0;
+
+    // Enrollments over time (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const enrollmentsByDay = await db.select({
+      day: sql<string>`DATE(enrolled_at)`,
+      count: sql<number>`count(*)`,
+    }).from(enrollments)
+      .where(gte(enrollments.enrolledAt, sevenDaysAgo))
+      .groupBy(sql`DATE(enrolled_at)`)
+      .orderBy(sql`DATE(enrolled_at)`);
+
+    // Revenue over time (last 7 days)
+    const revenueByDay = await db.select({
+      day: sql<string>`DATE(created_at)`,
+      sum: sql<number>`SUM(amount)`,
+    }).from(payments)
+      .where(and(eq(payments.status, "completed"), gte(payments.createdAt, sevenDaysAgo)))
+      .groupBy(sql`DATE(created_at)`)
+      .orderBy(sql`DATE(created_at)`);
+
+    // Category distribution
+    const categoryDist = await db.select({
+      name: categories.name,
+      count: sql<number>`count(*)`,
+      color: categories.color,
+    }).from(courses)
+      .rightJoin(categories, eq(courses.categoryId, categories.id))
+      .groupBy(categories.id, categories.name, categories.color);
+
+    // Recent activity
+    const recentActivity = await db.select({
+      id: activityLogs.id,
+      userId: activityLogs.userId,
+      action: activityLogs.action,
+      details: activityLogs.details,
+      createdAt: activityLogs.createdAt,
+      userName: users.name,
+      userAvatar: users.avatar,
+    }).from(activityLogs)
+      .leftJoin(users, eq(activityLogs.userId, users.id))
+      .orderBy(desc(activityLogs.createdAt))
+      .limit(10);
+
+    const [completedPayments] = await db.select({ count: sql<number>`count(*)` }).from(payments).where(eq(payments.status, "completed"));
+    const [pendingPayments] = await db.select({ count: sql<number>`count(*)` }).from(payments).where(eq(payments.status, "pending"));
+    const [failedPayments] = await db.select({ count: sql<number>`count(*)` }).from(payments).where(eq(payments.status, "failed"));
+    const [refundedPayments] = await db.select({ count: sql<number>`count(*)` }).from(payments).where(eq(payments.status, "refunded"));
+    const [totalAttempts] = await db.select({ count: sql<number>`count(*)` }).from(exerciseAttempts);
 
     const recentUsers = await db.select({
       id: users.id,
@@ -35,10 +93,27 @@ export const adminRouter = createRouter({
       .orderBy(desc(payments.createdAt)).limit(10);
 
     return {
-      totalUsers: totalUsers[0]?.count ?? 0,
-      totalCourses: totalCourses[0]?.count ?? 0,
-      totalEnrollments: totalEnrollments[0]?.count ?? 0,
+      totalUsers: totalUsers?.count ?? 0,
+      totalCourses: totalCourses?.count ?? 0,
+      totalEnrollments: totalEnrollments?.count ?? 0,
       totalRevenue: totalRevenueCents / 100,
+      totalCertificates: totalCertificates?.count ?? 0,
+      onlineUsers: onlineUsers?.count ?? 0,
+      aiChats: aiChats?.count ?? 0,
+      reviewsCount: reviewsCount?.count ?? 0,
+      testimonialsCount: testimonialsCount?.count ?? 0,
+      liveClassesCount: liveClassesCount?.count ?? 0,
+      blogPostsCount: blogPostsCount?.count ?? 0,
+      badgesCount: badgesCount?.count ?? 0,
+      completedPayments: completedPayments?.count ?? 0,
+      pendingPayments: pendingPayments?.count ?? 0,
+      failedPayments: failedPayments?.count ?? 0,
+      refundedPayments: refundedPayments?.count ?? 0,
+      totalExerciseAttempts: totalAttempts?.count ?? 0,
+      enrollmentsByDay,
+      revenueByDay,
+      categoryDistribution: categoryDist,
+      recentActivity,
       recentUsers,
       recentPayments,
     };

@@ -53,7 +53,8 @@ export default function Login() {
       }
       toast.success(t('auth.loggedInSuccess'))
       utils.auth.me.invalidate()
-      navigate('/dashboard')
+      const adminRoles = ['admin', 'super_admin']
+      navigate(adminRoles.includes(data.user.role) ? '/admin' : '/dashboard')
     },
     onError: (error) => {
       toast.error(error.message || t('auth.failedToLogin'))

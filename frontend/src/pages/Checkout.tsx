@@ -83,17 +83,17 @@ export default function Checkout() {
               <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
                 <div className="flex justify-between text-slate-500">
                   <span>Price</span>
-                  <span>${course.price}</span>
+                  <span>{Number(course.price).toLocaleString()} Frw</span>
                 </div>
                 {course.originalPrice && Number(course.originalPrice) > Number(course.price) && (
                   <div className="flex justify-between text-slate-500">
                     <span>Discount</span>
-                    <span className="text-emerald-500">-${(Number(course.originalPrice) - Number(course.price)).toFixed(2)}</span>
+                    <span className="text-emerald-500">-{(Number(course.originalPrice) - Number(course.price)).toLocaleString()} Frw</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span>Total</span>
-                  <span>${course.price}</span>
+                  <span>{Number(course.price).toLocaleString()} Frw</span>
                 </div>
               </div>
             </CardContent>

@@ -95,6 +95,7 @@ export const courses = mysqlTable("courses", {
   originalPrice: decimal("original_price", { precision: 10, scale: 2 }),
   currency: varchar("currency", { length: 10 }).default("usd"),
   duration: int("duration").default(0),
+  planTier: mysqlEnum("plan_tier", ["free", "basic", "pro", "premium"]).default("basic").notNull(),
   status: mysqlEnum("status", ["draft", "published", "archived"]).default("draft").notNull(),
   isFeatured: boolean("is_featured").default(false),
   rating: decimal("rating", { precision: 2, scale: 1 }).default("0.0"),
@@ -410,6 +411,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   billingPeriod: mysqlEnum("billing_period", ["monthly", "yearly"]).default("monthly"),
   features: json("features").$type<string[]>(),
   isActive: boolean("is_active").default(true),
+  stripePriceId: varchar("stripe_price_id", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
