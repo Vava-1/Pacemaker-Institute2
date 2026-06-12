@@ -4,18 +4,24 @@ import { eq, and } from "drizzle-orm";
 import Stripe from "stripe";
 import { createRouter, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, enrollments } from "@db/schema";
+import { courses, enrollments, payments } from "@db/schema";
+import { sql } from "drizzle-orm";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
-const CreateCheckoutSchema = z.object({
-  courseId: z.number().positive("Course ID must be positive"),
-  priceId: z.string().startsWith("price_", "Price ID must start with 'price_'"),
-  successUrl: z.string().url("Success URL must be a valid URL"),
-  cancelUrl: z.string().url("Cancel URL must be a valid URL"),
+const PAYMENT_METHODS = ["mtn_mobile_money", "airtel_money", "bank_card", "paypal"] as const;
+
+const InitiatePaymentSchema = z.object({
+  courseId: z.number().positive(),
+  paymentMethod: z.enum(PAYMENT_METHODS),
 });
 
-const CreateSubscriptionSchema = z.object({
+const ConfirmPaymentSchema = z.object({
+  paymentId: z.number().positive(),
+});
+
+const CreateCheckoutSchema = z.object({
+  courseId: z.number().positive("Course ID must be positive"),
   priceId: z.string().startsWith("price_", "Price ID must start with 'price_'"),
   successUrl: z.string().url("Success URL must be a valid URL"),
   cancelUrl: z.string().url("Cancel URL must be a valid URL"),
@@ -30,6 +36,111 @@ const RequestRefundSchema = z.object({
 });
 
 export const paymentRouter = createRouter({
+  // ── Local Payment Methods (MTN, Airtel, Bank Card, PayPal) ──
+  initiatePayment: protectedProcedure
+    .input(InitiatePaymentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const course = (await db.select({
+        id: courses.id,
+        title: courses.title,
+        price: courses.price,
+        currency: courses.currency,
+      }).from(courses).where(eq(courses.id, input.courseId)).limit(1))[0];
+
+      if (!course) throw new TRPCError({ code: "NOT_FOUND", message: "Course not found" });
+
+      // Ensure enrollment exists
+      let enrollment = (await db.select().from(enrollments)
+        .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, input.courseId)))
+        .limit(1))[0];
+
+      if (!enrollment) {
+        await db.insert(enrollments).values({
+          userId: ctx.user.id,
+          courseId: input.courseId,
+          progress: 0,
+          paymentStatus: "pending",
+          amount: course.price,
+        });
+        await db.update(courses)
+          .set({ totalStudents: sql`${courses.totalStudents} + 1` })
+          .where(eq(courses.id, input.courseId));
+
+        enrollment = (await db.select().from(enrollments)
+          .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, input.courseId)))
+          .limit(1))[0];
+      }
+
+      // Create payment record
+      const [payment] = await db.insert(payments).values({
+        userId: ctx.user.id,
+        courseId: input.courseId,
+        amount: Math.round(Number(course.price)),
+        currency: course.currency ?? "rwf",
+        status: "pending",
+        paymentMethod: input.paymentMethod,
+      });
+
+      const paymentId = Number(payment.insertId);
+
+      // Return payment instructions based on method
+      const instructions: Record<string, { label: string; details: string }> = {
+        mtn_mobile_money: {
+          label: "MTN Mobile Money",
+          details: "Dial *182# or use MoMo App. Pay to +250 786 053 720",
+        },
+        airtel_money: {
+          label: "Airtel Money",
+          details: "Dial *500# or use Airtel Money App. Pay to +250 786 053 720",
+        },
+        bank_card: {
+          label: "Bank Card",
+          details: "Visa / MasterCard. You will be redirected to secure checkout.",
+        },
+        paypal: {
+          label: "PayPal",
+          details: "Pay with your PayPal account. You will be redirected to PayPal.",
+        },
+      };
+
+      const info = instructions[input.paymentMethod] ?? { label: input.paymentMethod, details: "Complete payment to continue." };
+
+      return {
+        paymentId,
+        amount: Number(course.price),
+        currency: course.currency ?? "rwf",
+        method: info.label,
+        instructions: info.details,
+        enrollmentId: enrollment.id,
+      };
+    }),
+
+  confirmPayment: protectedProcedure
+    .input(ConfirmPaymentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const payment = (await db.select().from(payments)
+        .where(and(eq(payments.id, input.paymentId), eq(payments.userId, ctx.user.id)))
+        .limit(1))[0];
+
+      if (!payment) throw new TRPCError({ code: "NOT_FOUND", message: "Payment not found" });
+      if (payment.status === "completed") throw new TRPCError({ code: "BAD_REQUEST", message: "Payment already completed" });
+
+      // Mark payment as completed
+      await db.update(payments).set({ status: "completed" }).where(eq(payments.id, input.paymentId));
+
+      // Mark enrollment as paid
+      await db.update(enrollments)
+        .set({ paymentStatus: "paid" })
+        .where(and(eq(enrollments.userId, ctx.user.id), eq(enrollments.courseId, payment.courseId)));
+
+      logger.info("Payment confirmed", { paymentId: input.paymentId, userId: ctx.user.id, method: payment.paymentMethod });
+
+      return { success: true, courseId: payment.courseId };
+    }),
+
+  // ── Stripe Checkout ──
   createCheckout: protectedProcedure
     .input(CreateCheckoutSchema)
     .mutation(async ({ input, ctx }) => {
@@ -61,41 +172,6 @@ export const paymentRouter = createRouter({
       } catch (err: any) {
         logger.error("Failed to create checkout session", { error: err.message });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create checkout session" });
-      }
-    }),
-
-  createSubscriptionCheckout: protectedProcedure
-    .input(CreateSubscriptionSchema)
-    .mutation(async ({ input, ctx }) => {
-      if (!env.stripeSecretKey) {
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Payments are not configured" });
-      }
-
-      const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
-
-      try {
-        const session = await stripe.checkout.sessions.create({
-          payment_method_types: ["card"],
-          mode: "subscription",
-          line_items: [{ price: input.priceId, quantity: 1 }],
-          subscription_data: {
-            trial_period_days: 14,
-            metadata: {
-              userId: ctx.user.id.toString(),
-              type: "subscription",
-            },
-          },
-          success_url: input.successUrl,
-          cancel_url: input.cancelUrl,
-          customer_email: ctx.user.email,
-        });
-
-        logger.info("Subscription checkout created", { userId: ctx.user.id, sessionId: session.id });
-
-        return { sessionId: session.id, url: session.url };
-      } catch (err: any) {
-        logger.error("Failed to create subscription checkout", { error: err.message });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create subscription checkout" });
       }
     }),
 

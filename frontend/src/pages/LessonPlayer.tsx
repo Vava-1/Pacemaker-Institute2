@@ -4,15 +4,47 @@ import { trpc } from '@/providers/trpc'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { ArrowLeft, Play, CheckCircle, Menu, X, ChevronRight, Lock } from 'lucide-react'
+import { ArrowLeft, Play, CheckCircle, Menu, X, ChevronRight, Lock, Smartphone, CreditCard, Globe, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+
+const PAYMENT_METHODS = [
+  { id: 'mtn_mobile_money', label: 'MTN Mobile Money', icon: Smartphone, color: 'bg-yellow-500' },
+  { id: 'airtel_money', label: 'Airtel Money', icon: Smartphone, color: 'bg-red-500' },
+  { id: 'bank_card', label: 'Bank Card', icon: CreditCard, color: 'bg-blue-600' },
+  { id: 'paypal', label: 'PayPal', icon: Globe, color: 'bg-blue-500' },
+] as const
+
 export default function LessonPlayer() {
   const { slug, lessonId } = useParams<{ slug: string; lessonId: string }>()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const utils = trpc.useUtils()
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [showPayment, setShowPayment] = useState(false)
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
+  const [paymentInfo, setPaymentInfo] = useState<any>(null)
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+
+  const lessonIdNum = lessonId ? Number(lessonId) : undefined
+
+  const initiatePayment = trpc.payment.initiatePayment.useMutation({
+    onSuccess: (data) => {
+      setPaymentInfo(data)
+      toast.success('Enrollment created! Follow instructions to complete payment.')
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const confirmPayment = trpc.payment.confirmPayment.useMutation({
+    onSuccess: () => {
+      setPaymentConfirmed(true)
+      toast.success('Payment confirmed! Access granted.')
+      utils.lesson.getLessonContent.invalidate({ lessonId: lessonIdNum! })
+    },
+    onError: (err) => toast.error(err.message),
+  })
 
   // Fetch course info (for sidebar)
   const { data: course, isLoading: isLoadingCourse } = trpc.course.getBySlug.useQuery(
@@ -21,7 +53,6 @@ export default function LessonPlayer() {
   )
 
   // Fetch lesson content
-  const lessonIdNum = lessonId ? Number(lessonId) : undefined
   const { data: lessonContent, isLoading: isLoadingLesson, error: lessonError } = trpc.lesson.getLessonContent.useQuery(
     { lessonId: lessonIdNum! },
     { 
@@ -177,21 +208,88 @@ export default function LessonPlayer() {
 
         <ScrollArea className="flex-1">
           <div className="max-w-5xl mx-auto p-4 md:p-8">
-            {lessonError ? (
-              <Card className="border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 mt-8">
-                <CardContent className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                  <Lock className="h-12 w-12 text-red-500 mb-4" />
-                  <h3 className="text-xl font-bold text-red-900 dark:text-red-400 mb-2">Access Denied</h3>
-                  <p className="text-red-700 dark:text-red-500 mb-6 max-w-md">
-                    {lessonError.data?.code === 'FORBIDDEN' || lessonError.message.toLowerCase().includes('forbidden') || lessonError.message.toLowerCase().includes('enroll') 
-                      ? 'You must be enrolled in this course to view this lesson.' 
-                      : lessonError.message}
-                  </p>
-                  <Link to={`/courses/${slug}`}>
-                    <Button>Go to Course Page to Enroll</Button>
-                  </Link>
+            {lessonError && !paymentConfirmed ? (
+              <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 mt-8">
+                <CardContent className="py-12 px-4">
+                  {!showPayment ? (
+                    <div className="flex flex-col items-center text-center">
+                      <Lock className="h-12 w-12 text-amber-500 mb-4" />
+                      <h3 className="text-xl font-bold text-amber-900 dark:text-amber-400 mb-2">Lesson Locked</h3>
+                      <p className="text-amber-700 dark:text-amber-500 mb-2 max-w-md">
+                        Enroll and pay to access this lesson.
+                      </p>
+                      {course && (
+                        <p className="text-2xl font-bold text-amber-900 dark:text-amber-300 mb-6">
+                          {Number(course.price).toLocaleString()} Frw
+                        </p>
+                      )}
+                      <Button onClick={() => setShowPayment(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+                        Pay to Enroll
+                      </Button>
+                    </div>
+                  ) : paymentInfo ? (
+                    <div className="max-w-md mx-auto text-center">
+                      <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
+                        <Smartphone className="h-8 w-8 text-emerald-600" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">Payment Instructions</h3>
+                      <p className="text-sm text-slate-500 mb-1">Amount: <strong>{Number(paymentInfo.amount).toLocaleString()} {paymentInfo.currency.toUpperCase()}</strong></p>
+                      <p className="text-sm text-slate-500 mb-1">Method: <strong>{paymentInfo.method}</strong></p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 my-4 border border-slate-200 dark:border-slate-700">
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{paymentInfo.instructions}</p>
+                      </div>
+                      <Button
+                        onClick={() => confirmPayment.mutate({ paymentId: paymentInfo.paymentId })}
+                        disabled={confirmPayment.isPending}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
+                      >
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
+                      </Button>
+                      <p className="text-xs text-slate-400">For mobile money: send the exact amount above to the number shown, then click confirm.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 text-center">Choose Payment Method</h3>
+                      <div className="grid gap-3 max-w-sm mx-auto">
+                        {PAYMENT_METHODS.map((method) => {
+                          const Icon = method.icon
+                          const isLoading = initiatePayment.isPending && selectedMethod === method.id
+                          return (
+                            <button
+                              key={method.id}
+                              onClick={() => {
+                                setSelectedMethod(method.id)
+                                initiatePayment.mutate({ courseId: course!.id, paymentMethod: method.id })
+                              }}
+                              disabled={initiatePayment.isPending}
+                              className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 hover:shadow-md transition-all disabled:opacity-50"
+                            >
+                              <div className={`w-10 h-10 rounded-lg ${method.color} flex items-center justify-center`}>
+                                {isLoading ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Icon className="h-5 w-5 text-white" />}
+                              </div>
+                              <div className="text-left flex-1">
+                                <p className="font-medium text-sm text-slate-900 dark:text-slate-100">{method.label}</p>
+                                <p className="text-xs text-slate-500">
+                                  {method.id === 'mtn_mobile_money' || method.id === 'airtel_money' ? 'Pay via mobile money' : method.id === 'bank_card' ? 'Visa / MasterCard' : 'Pay online'}
+                                </p>
+                              </div>
+                              {isLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+            ) : lessonError && paymentConfirmed ? (
+              <div className="mt-8 text-center">
+                <div className="animate-pulse text-emerald-600">Payment confirmed! Loading lesson...</div>
+              </div>
             ) : isLoadingLesson ? (
               <div className="mt-8 space-y-6">
                 <div className="aspect-video bg-slate-200 dark:bg-slate-800 animate-pulse rounded-lg"></div>

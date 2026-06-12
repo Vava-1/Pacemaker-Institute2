@@ -51,7 +51,6 @@ const UNSPLASH_CATEGORIES: Record<string, string[]> = {
 
 const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 const EXERCISE_TYPES = ["multiple_choice", "fill_blank", "true_false"] as const;
-const LANGUAGES = ["en", "fr", "sw", "de"];
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];

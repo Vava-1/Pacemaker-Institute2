@@ -368,6 +368,7 @@ export const payments = mysqlTable("payments", {
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   stripeSessionId: varchar("stripe_session_id", { length: 255 }),
   status: varchar("status", { length: 50 }).default("pending").notNull(),
+  paymentMethod: varchar("payment_method", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   userIdx: index("payments_user_idx").on(t.userId),
