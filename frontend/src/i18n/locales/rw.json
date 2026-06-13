@@ -1,4 +1,10 @@
 {
+  "common": {
+    "search": "Shakisha",
+    "viewAll": "Reba byose",
+    "instructors": "Abarimu",
+    "categories": "Ibyiciro"
+  },
   "nav": {
     "home": "Ahabanza",
     "courses": "Amasomo",

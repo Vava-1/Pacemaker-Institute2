@@ -9,13 +9,14 @@ import { Calendar, User, Tag, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function Blog() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = i18n.language?.split('-')[0] || 'en'
   const [searchParams] = useSearchParams()
   const activeTag = searchParams.get('tag') || undefined
   const [selectedTag, setSelectedTag] = useState<string | undefined>(activeTag)
 
-  const { data: posts, isLoading } = trpc.blog.list.useQuery({ tag: selectedTag })
-  const { data: featuredPosts } = trpc.blog.featured.useQuery()
+  const { data: posts, isLoading } = trpc.blog.list.useQuery({ tag: selectedTag, language: lang })
+  const { data: featuredPosts } = trpc.blog.featured.useQuery({ language: lang })
 
   const allTags = [...new Set<string>((posts ?? []).flatMap((p: any) => p.tags ?? []))].sort()
 

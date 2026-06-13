@@ -1,4 +1,10 @@
 {
+  "common": {
+    "search": "Suchen",
+    "viewAll": "Alle anzeigen",
+    "instructors": "Dozenten",
+    "categories": "Kategorien"
+  },
   "nav": {
     "home": "Startseite",
     "courses": "Kurse",

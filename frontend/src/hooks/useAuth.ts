@@ -22,7 +22,8 @@ export function useAuth(options?: UseAuthOptions) {
     refetch,
   } = trpc.auth.me.useQuery(undefined, {
     staleTime: 1000 * 60 * 5,
-    retry: false,
+    retry: 2,
+    retryDelay: 1000,
   });
 
   const logout = useCallback(() => {

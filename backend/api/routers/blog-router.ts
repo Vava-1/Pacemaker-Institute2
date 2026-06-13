@@ -1,19 +1,22 @@
 import { createRouter, publicQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { blogPosts } from "../../db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 export const blogRouter = createRouter({
   list: publicQuery
-    .input(z.object({ tag: z.string().optional() }).optional())
+    .input(z.object({ tag: z.string().optional(), language: z.string().optional() }).optional())
     .query(async ({ input }) => {
       const db = getDb();
-      const condition = eq(blogPosts.published, true);
+      const conditions = [eq(blogPosts.published, true)];
+      if (input?.language) {
+        conditions.push(eq(blogPosts.language, input.language));
+      }
       const posts = await db
         .select()
         .from(blogPosts)
-        .where(condition)
+        .where(and(...conditions))
         .orderBy(desc(blogPosts.createdAt));
       if (input?.tag) {
         return posts.filter((p: any) => p.tags?.includes(input.tag));
@@ -21,14 +24,20 @@ export const blogRouter = createRouter({
       return posts;
     }),
 
-  featured: publicQuery.query(async () => {
-    const db = getDb();
-    return db
-      .select()
-      .from(blogPosts)
-      .where(eq(blogPosts.featured, true))
-      .orderBy(desc(blogPosts.createdAt));
-  }),
+  featured: publicQuery
+    .input(z.object({ language: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      const db = getDb();
+      const conditions = [eq(blogPosts.featured, true)];
+      if (input?.language) {
+        conditions.push(eq(blogPosts.language, input.language));
+      }
+      return db
+        .select()
+        .from(blogPosts)
+        .where(and(...conditions))
+        .orderBy(desc(blogPosts.createdAt));
+    }),
 
   bySlug: publicQuery
     .input(z.object({ slug: z.string() }))

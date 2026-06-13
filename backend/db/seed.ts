@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { createPool, getDb } from "../api/queries/connection";
 import {
-  categories, courses, modules, lessons, lessonProgress, badges, users, enrollments, notifications,
+  categories, courses, modules, lessons, lessonProgress, badges, users, enrollments, notifications, blogPosts, messages, chatRooms,
 } from "./schema";
 
 const SEED_CONFIG = {
@@ -389,6 +389,291 @@ const COURSES: {
   },
 ];
 
+// slug → category name for thumbnail lookup
+const SLUG_TO_CATEGORY: Record<string, string> = {
+  english: "English",
+  french: "French",
+  kiswahili: "Kiswahili",
+  german: "German",
+  bakery: "Bakery",
+  salon: "Salon",
+  mechanics: "Mechanics",
+  "ai-skills": "AI Skills for Professionals",
+  "private-candidates": "Private Candidate Support",
+  "language-proficiency": "English",
+  "test-prep-english": "English",
+  "test-prep-french": "French",
+  "test-prep-german": "German",
+};
+
+const UNSPLASH_THUMBNAILS: Record<string, string[]> = {
+  English: [
+    "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800",
+    "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800",
+    "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800",
+  ],
+  French: [
+    "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800",
+    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+    "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
+  ],
+  Kiswahili: [
+    "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800",
+    "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800",
+    "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800",
+  ],
+  German: [
+    "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800",
+    "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800",
+    "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=800",
+  ],
+  Bakery: [
+    "https://images.unsplash.com/photo-1557925923-cd4648e211a0?w=800",
+    "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=800",
+    "https://images.unsplash.com/photo-1544816155-12df9643f363?w=800",
+  ],
+  Salon: [
+    "https://images.unsplash.com/photo-1560869713-7d0a29430803?w=800",
+    "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800",
+    "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800",
+  ],
+  Mechanics: [
+    "https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=800",
+    "https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?w=800",
+    "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=800",
+  ],
+  "AI Skills for Professionals": [
+    "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800",
+    "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800",
+    "https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?w=800",
+  ],
+  "Private Candidate Support": [
+    "https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=800",
+    "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800",
+    "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800",
+  ],
+};
+
+const BLOG_POSTS: {
+  title: string; slug: string; excerpt: string; content: string;
+  image: string; authorName: string; authorAvatar: string;
+  tags: string[]; published: boolean; featured: boolean; language: string;
+}[] = [
+  // Kinyarwanda (rw)
+  {
+    title: "Uburyo bwo kwiga neza mu ishuri rya kure",
+    slug: "uburyo-bwo-kwiga-neza-mu-ishuri-rya-kure",
+    excerpt: "Menya amabanga y'ukuntu wakwiga neza udafite ikibazo cyo kuba kure y'ishuri.",
+    content: "Kwiga mu ishuri rya kure bisaba gahunda nziza. Urugero, ugomba gutegura gahunda ya buri munsi, gukoresha neza igihe cyawe, no gufata ibyaruhukiwe nk'ikigisho cy'ingenzi. Iyi ngingo igufasha kumenya uko wakwiga neza mu nzu yawe.",
+    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
+    authorName: "Dr. Jean Pierre",
+    authorAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    tags: ["e-learning", "tips", "study"],
+    published: true,
+    featured: true,
+    language: "rw",
+  },
+  {
+    title: "Akarusho k'ubumenyi mu gihe cya digitale",
+    slug: "akarusho-k-ubumenyi-mu-gihe-cya-digitale",
+    excerpt: "Reeba uburyo ikoranabuhanga ryahinduye uburyo bw'imyigishirize mu Rwanda.",
+    content: "Ikoranabuhanga ryahinduye cyane uburyo abanyeshuri bakura ubumenyi. Ushobora kwiga ikindi cyose ushaka ukoresheje mudasobwa yawe cyangwa terefone. Iyi ngingo ivuga ku byiza byo kwiga ukoresheje ikoranabuhanga.",
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+    authorName: "Mugabo Alice",
+    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    tags: ["technology", "education", "Rwanda"],
+    published: true,
+    featured: false,
+    language: "rw",
+  },
+  {
+    title: "Kwiga icyongereza mu buryo bworoshye",
+    slug: "kwiga-icyongereza-mu-buryo-bworoshye",
+    excerpt: "Sobanukirwa uburyo bworoshye bwo kwiga icyongereza wifashishije interineti.",
+    content: "Kwiga icyongereza ntibikomeye nk'uko bibonera. Ushobora kwifashisha amakuru menshi aboneka kuri interineti, amashuri ya kure, n'ibikoresho byo kwigisha kugira ngo uteze imbere mu vugo.",
+    image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800",
+    authorName: "Mukamana Béatrice",
+    authorAvatar: "https://images.unsplash.com/photo-1544005313-62b20a0f7a7a?w=200",
+    tags: ["english", "language", "tips"],
+    published: true,
+    featured: true,
+    language: "rw",
+  },
+  {
+    title: "Gukora neza mu buzima bwawe",
+    slug: "gukora-neza-mu-buzima-bwawe",
+    excerpt: "Amabanga y'ukuntu wakora neza mu buzima bwawe bwa buri munsi.",
+    content: "Gukora neza mu buzima bisaba gahunda nziza, kwirinda ibintu bitagira akamaro, no gukoresha igihe cyawe neza. Soma iyi ngingo kugira ngo umenye uko wakora neza.",
+    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800",
+    authorName: "Niyonzima Théogène",
+    authorAvatar: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200",
+    tags: ["productivity", "lifestyle", "tips"],
+    published: true,
+    featured: false,
+    language: "rw",
+  },
+  // French (fr)
+  {
+    title: "Comment réussir ses examens en ligne",
+    slug: "comment-reussir-ses-examens-en-ligne",
+    excerpt: "Découvrez les meilleures stratégies pour réussir vos examens à distance.",
+    content: "Les examens en ligne peuvent être stressants, mais avec une bonne préparation, vous pouvez les réussir. Dans cet article, nous partageons des conseils pratiques pour gérer votre temps, éviter les distractions et maximiser vos résultats.",
+    image: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800",
+    authorName: "Prof. Marie Claire",
+    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    tags: ["exams", "online-learning", "success"],
+    published: true,
+    featured: true,
+    language: "fr",
+  },
+  {
+    title: "Top 10 des compétences à apprendre en 2026",
+    slug: "top-10-competences-2026",
+    excerpt: "Voici les compétences les plus demandées sur le marché du travail cette année.",
+    content: "Le marché du travail évolue rapidement. Découvrez les compétences les plus recherchées en 2026, y compris l'intelligence artificielle, la gestion de projet, les langues étrangères, et bien plus.",
+    image: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800",
+    authorName: "Habimana David",
+    authorAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
+    tags: ["career", "skills", "2026"],
+    published: true,
+    featured: false,
+    language: "fr",
+  },
+  {
+    title: "Apprendre une langue avec Pacemaker",
+    slug: "apprendre-une-langue-avec-pacemaker",
+    excerpt: "Découvrez comment notre plateforme vous aide à maîtriser une nouvelle langue rapidement.",
+    content: "Chez Pacemaker Institute, nous croyons que l'apprentissage des langues doit être accessible à tous. Nos cours en ligne sont conçus pour vous aider à progresser à votre rythme avec des instructeurs qualifiés.",
+    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800",
+    authorName: "Prof. Marie Claire",
+    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    tags: ["languages", "pacemaker", "learning"],
+    published: true,
+    featured: true,
+    language: "fr",
+  },
+  // German (de)
+  {
+    title: "Die Zukunft des E-Learnings in Afrika",
+    slug: "zukunft-e-learning-afrika",
+    excerpt: "Wie digitale Bildung den afrikanischen Kontinent verändert.",
+    content: "Afrika erlebt eine digitale Revolution im Bildungsbereich. Immer mehr afrikanische Länder setzen auf E-Learning, um Bildung für alle zugänglich zu machen. Erfahren Sie, welche Trends die Zukunft prägen werden.",
+    image: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800",
+    authorName: "Prof. Dr. Schmidt",
+    authorAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
+    tags: ["e-learning", "Africa", "future"],
+    published: true,
+    featured: false,
+    language: "de",
+  },
+  {
+    title: "Tipps für effektives Online-Lernen",
+    slug: "tipps-fuer-effektives-online-lernen",
+    excerpt: "Praktische Ratschläge, um das Beste aus Ihrem Online-Studium herauszuholen.",
+    content: "Online-Lernen erfordert Disziplin und die richtigen Strategien. In diesem Artikel teilen wir bewährte Methoden, um konzentriert zu bleiben, Ihre Zeit effizient zu nutzen und Ihre Lernziele zu erreichen.",
+    image: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800",
+    authorName: "Prof. Dr. Schmidt",
+    authorAvatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200",
+    tags: ["online-learning", "tips", "productivity"],
+    published: true,
+    featured: true,
+    language: "de",
+  },
+  {
+    title: "Karrieremöglichkeiten mit Sprachkenntnissen",
+    slug: "karrieremoeglichkeiten-mit-sprachkenntnissen",
+    excerpt: "Wie das Erlernen einer neuen Sprache Ihre Karrierechancen verbessern kann.",
+    content: "In einer globalisierten Welt sind Sprachkenntnisse ein wertvolles Gut. Arbeitgeber schätzen Kandidaten, die mehrere Sprachen sprechen. Entdecken Sie, wie eine neue Sprache Ihre beruflichen Möglichkeiten erweitern kann.",
+    image: "https://images.unsplash.com/photo-1523050854058-8df90110c7f9?w=800",
+    authorName: "Anna Müller",
+    authorAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
+    tags: ["career", "languages", "opportunities"],
+    published: true,
+    featured: false,
+    language: "de",
+  },
+  // English (en)
+  {
+    title: "How to Succeed in Online Learning",
+    slug: "how-to-succeed-in-online-learning",
+    excerpt: "Learn the best strategies to make the most of your online education experience.",
+    content: "Online learning offers flexibility and access to world-class education from anywhere. To succeed, you need to create a consistent study schedule, eliminate distractions, and actively participate in course activities. This guide will help you thrive in your online learning journey.",
+    image: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800",
+    authorName: "Dr. Sarah Johnson",
+    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    tags: ["online-learning", "success", "tips"],
+    published: true,
+    featured: true,
+    language: "en",
+  },
+  {
+    title: "The Rise of E-Learning in Africa",
+    slug: "rise-of-elearning-in-africa",
+    excerpt: "How digital education is transforming learning opportunities across the African continent.",
+    content: "Africa is experiencing a digital revolution in education. With increasing internet penetration and mobile device adoption, e-learning platforms are making quality education accessible to millions. This article explores the trends shaping the future of education in Africa.",
+    image: "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=800",
+    authorName: "James Mwangi",
+    authorAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
+    tags: ["e-learning", "Africa", "education"],
+    published: true,
+    featured: false,
+    language: "en",
+  },
+  {
+    title: "Top Programming Languages to Learn in 2026",
+    slug: "top-programming-languages-2026",
+    excerpt: "Stay ahead of the curve with these in-demand programming languages.",
+    content: "The tech industry continues to evolve at a rapid pace. Whether you're a beginner or an experienced developer, learning the right programming languages can open up new career opportunities. Here are the top languages to focus on this year.",
+    image: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=800",
+    authorName: "Dr. Sarah Johnson",
+    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    tags: ["programming", "career", "technology"],
+    published: true,
+    featured: true,
+    language: "en",
+  },
+  // Kiswahili (sw)
+  {
+    title: "Jinsi ya Kufaulu Katika Masomo ya Mtandaoni",
+    slug: "jinsi-ya-kufaulu-masomo-mtandaoni",
+    excerpt: "Jifunze mikakati bora ya kufaulu katika elimu yako ya mtandaoni.",
+    content: "Masomo ya mtandaoni yanatoa kubadilika na ufikiaji wa elimu ya hali ya juu kutoka popote. Ili kufaulu, unahitaji kuunda ratiba thabiti ya kusoma, kuondoa vikengeusha, na kushiriki kikamilifu katika shughuli za kozi. Mwongozo huu utakusaidia kustawi katika safari yako ya kujifunza mtandaoni.",
+    image: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800",
+    authorName: "Dkt. Aisha Mohamed",
+    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    tags: ["online-learning", "success", "tips"],
+    published: true,
+    featured: true,
+    language: "sw",
+  },
+  {
+    title: "Umuhimu wa Elimu ya Mtandaoni Afrika",
+    slug: "umuhimu-wa-elimu-mtandaoni-afrika",
+    excerpt: "Jinsi elimu ya dijitali inavyobadilisha fursa za kujifunza barani Afrika.",
+    content: "Afrika inakabiliwa na mapinduzi ya kidijitali katika elimu. Kwa kuongezeka kwa matumizi ya mtandao na vifaa vya mkononi, majukwaa ya elimu mtandaoni yanafanya elimu bora kupatikana kwa mamilioni. Makala hii inachunguza mwelekeo unaounda mustakabali wa elimu Afrika.",
+    image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800",
+    authorName: "Dkt. Aisha Mohamed",
+    authorAvatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200",
+    tags: ["e-learning", "Africa", "education"],
+    published: true,
+    featured: false,
+    language: "sw",
+  },
+  {
+    title: "Njia Rahisi za Kujifunza Lugha Mpya",
+    slug: "njia-rahisi-kujifunza-lugha-mpya",
+    excerpt: "Gundua njia rahisi na za haraka za kujifunza lugha mpya mtandaoni.",
+    content: "Kujifunza lugha mpya kunaweza kuwa changamoto, lakini kwa zana sahihi na mbinu bora, unaweza kufanya maendeleo ya haraka. Pacemaker Institute inatoa kozi za lugha zinazokusaidia kujifunza kwa urahisi na kwa muda wako mwenyewe.",
+    image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800",
+    authorName: "Fatima Hassan",
+    authorAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+    tags: ["languages", "learning", "tips"],
+    published: true,
+    featured: false,
+    language: "sw",
+  },
+];
+
 const BADGES = [
   { name: "First Steps", description: "Complete your first lesson", icon: "Footprints", color: "#3b82f6", requirementType: "lessons", requirementValue: 1, points: 10 },
   { name: "Quick Learner", description: "Complete 5 lessons in a day", icon: "Zap", color: "#f97316", requirementType: "lessons", requirementValue: 5, points: 25 },
@@ -491,6 +776,8 @@ async function seed() {
   }
   console.log(`  + Created ${CATEGORIES.length} categories (including subcategories)`);
 
+  const thumbIndex: Record<string, number> = {};
+
   console.log("\nSeeding courses and lessons...");
   await db.delete(lessonProgress);
   await db.delete(lessons);
@@ -513,7 +800,12 @@ async function seed() {
         instructorId: instructor.id,
         level: courseData.level as any,
         language: "en",
-        thumbnail: `https://images.unsplash.com/photo-1579468118864-1b9ea3c0db4a?w=800`,
+        thumbnail: (() => {
+          const catName = SLUG_TO_CATEGORY[courseData.categorySlug] ?? "English";
+          const imgs = UNSPLASH_THUMBNAILS[catName];
+          thumbIndex[catName] = (thumbIndex[catName] ?? -1) + 1;
+          return imgs[thumbIndex[catName] % imgs.length];
+        })(),
         price: courseData.price,
         originalPrice: courseData.originalPrice,
         currency: courseData.currency,
@@ -589,6 +881,43 @@ async function seed() {
   } else {
     console.log("  - Notifications already exist, skipping.");
   }
+
+  console.log("\nSeeding chat rooms...");
+  await db.delete(messages);
+  await db.delete(chatRooms);
+  const CHAT_ROOMS = [
+    { name: "General", slug: "general", description: "Welcome to the Pacemaker community! Chat about anything.", category: "general" },
+    { name: "Languages", slug: "languages", description: "Practice languages together — English, French, German, Kiswahili & more", category: "languages" },
+    { name: "Exam Prep", slug: "exam-prep", description: "TOEFL, IELTS, DELF, SAT — prep tips and study groups", category: "exam-prep" },
+    { name: "Mechanics", slug: "mechanics", description: "Auto mechanics, engine diagnostics & automotive tech", category: "mechanics" },
+    { name: "Bakery", slug: "bakery", description: "Sourdough, pastry, artisan bread — share recipes & tips", category: "bakery" },
+    { name: "Salon & Beauty", slug: "salon", description: "Hair, makeup, nails & beauty business", category: "salon" },
+    { name: "AI Skills", slug: "ai-skills", description: "AI tools, prompt engineering, and tech discussions", category: "ai-skills" },
+    { name: "Instructors Lounge", slug: "instructors-lounge", description: "Private space for instructors and mentors", category: "general" },
+  ];
+  for (const room of CHAT_ROOMS) {
+    await db.insert(chatRooms).values(room);
+  }
+  console.log(`  + Created ${CHAT_ROOMS.length} chat rooms`);
+
+  console.log("\nSeeding blog posts...");
+  await db.delete(blogPosts);
+  for (const post of BLOG_POSTS) {
+    await db.insert(blogPosts).values({
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      content: post.content,
+      image: post.image,
+      authorName: post.authorName,
+      authorAvatar: post.authorAvatar,
+      tags: post.tags,
+      language: post.language,
+      published: post.published,
+      featured: post.featured,
+    });
+  }
+  console.log(`  + Created ${BLOG_POSTS.length} blog posts`);
 
   console.log("\n========================================");
   console.log("  SEEDING COMPLETE!");

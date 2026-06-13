@@ -285,6 +285,7 @@ export const chatRooms = mysqlTable("chat_rooms", {
   description: text("description"),
   category: varchar("category", { length: 100 }),
   isPrivate: boolean("is_private").default(false),
+  lastActivity: timestamp("last_activity").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -295,11 +296,14 @@ export const messages = mysqlTable("messages", {
   senderId: bigint("sender_id", { mode: "number", unsigned: true }).notNull(),
   receiverId: bigint("receiver_id", { mode: "number", unsigned: true }),
   content: text("content").notNull(),
+  replyToId: bigint("reply_to_id", { mode: "number", unsigned: true }),
+  reactions: json("reactions").$type<{ emoji: string; userId: number }[]>().default([]).notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   roomIdx: index("messages_room_idx").on(t.roomId),
   senderIdx: index("messages_sender_idx").on(t.senderId),
+  replyIdx: index("messages_reply_idx").on(t.replyToId),
 }));
 
 export type Message = typeof messages.$inferSelect;
@@ -479,6 +483,7 @@ export const blogPosts = mysqlTable("blog_posts", {
   authorName: varchar("author_name", { length: 255 }).notNull(),
   authorAvatar: text("author_avatar"),
   tags: json("tags").$type<string[]>(),
+  language: varchar("language", { length: 10 }).default("en").notNull(),
   published: boolean("published").default(false).notNull(),
   featured: boolean("featured").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -486,6 +491,7 @@ export const blogPosts = mysqlTable("blog_posts", {
 }, (t) => ({
   slugIdx: uniqueIndex("blog_posts_slug_idx").on(t.slug),
   publishedIdx: index("blog_posts_published_idx").on(t.published),
+  languageIdx: index("blog_posts_language_idx").on(t.language),
 }));
 
 export type BlogPost = typeof blogPosts.$inferSelect;

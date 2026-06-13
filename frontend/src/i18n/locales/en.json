@@ -1,4 +1,10 @@
 {
+  "common": {
+    "search": "Search",
+    "viewAll": "View all",
+    "instructors": "Instructors",
+    "categories": "Categories"
+  },
   "nav": {
     "home": "Home",
     "courses": "Courses",

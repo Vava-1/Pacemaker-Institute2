@@ -4,9 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Loader2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react'
+import { Loader2, KeyRound, ArrowLeft, RefreshCw, ServerCrash } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc } from '@/providers/trpc'
+import { useApiHealth } from '@/hooks/useApiHealth'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -34,9 +35,9 @@ import {
 
 export default function Register() {
   const { t } = useTranslation()
+  const health = useApiHealth()
   const [step, setStep] = useState<'register' | 'otp'>('register')
   const [registeredEmail, setRegisteredEmail] = useState('')
-  const [devOtp, setDevOtp] = useState('')
   const [otp, setOtp] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
   
@@ -68,17 +69,15 @@ export default function Register() {
   })
 
   const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       setRegisteredEmail(form.getValues('email'))
-      if ((data as any).devOtp) {
-        setDevOtp((data as any).devOtp)
-      }
       setStep('otp')
       toast.success(t('register.registrationSuccess'))
       startResendCooldown()
     },
     onError: (error) => {
-      toast.error(error.message || t('register.failedToRegister'))
+      console.error("[Auth] Register failed:", { message: error.message, code: error.data?.code })
+      toast.error(t('register.failedToRegister'))
     },
   })
 
@@ -92,10 +91,7 @@ export default function Register() {
   })
 
   const resendOtpMutation = trpc.auth.resendOtp.useMutation({
-    onSuccess: (data) => {
-      if ((data as any).devOtp) {
-        setDevOtp((data as any).devOtp)
-      }
+    onSuccess: () => {
       toast.success(t('register.newOtpSent'))
       startResendCooldown()
     },
@@ -161,13 +157,6 @@ export default function Register() {
           <CardContent className="flex flex-col items-center gap-6">
               {!isVerified && (
               <>
-                {devOtp && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <p className="font-medium">{t('register.devOtp')}</p>
-                    <p className="mt-1 text-2xl font-mono font-bold tracking-widest">{devOtp}</p>
-                    <p className="mt-1 text-xs text-amber-600">{t('register.noEmailSent')}</p>
-                  </div>
-                )}
                 <InputOTP
                   maxLength={6}
                   value={otp}
@@ -231,6 +220,13 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
+      <div className="w-full max-w-md mb-4">
+        {health.status === "down" && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2 mb-4">
+            <ServerCrash className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{health.detail}</span>
+          </div>
+        )}
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <CardTitle className="text-2xl font-bold">{t('register.createAccount')}</CardTitle>
@@ -334,6 +330,7 @@ export default function Register() {
           </Link>
         </CardFooter>
       </Card>
+      </div>
     </div>
   )
 }

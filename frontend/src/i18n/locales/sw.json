@@ -1,4 +1,10 @@
 {
+  "common": {
+    "search": "Tafuta",
+    "viewAll": "Ona zote",
+    "instructors": "Wakufunzi",
+    "categories": "Kategoria"
+  },
   "nav": {
     "home": "Nyumbani",
     "courses": "Kozi",

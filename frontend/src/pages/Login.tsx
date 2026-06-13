@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Loader2, GraduationCap } from 'lucide-react'
+import { Loader2, GraduationCap, ServerCrash } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc, setAuthToken } from '@/providers/trpc'
+import { useApiHealth } from '@/hooks/useApiHealth'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +29,7 @@ import {
 export default function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const health = useApiHealth()
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.validationEmail')),
@@ -57,7 +59,8 @@ export default function Login() {
       navigate(adminRoles.includes(data.user.role) ? '/admin' : '/dashboard')
     },
     onError: (error) => {
-      toast.error(error.message || t('auth.failedToLogin'))
+      console.error("[Auth] Login failed:", { message: error.message, code: error.data?.code })
+      toast.error(t('auth.failedToLogin'))
     },
   })
 
@@ -75,6 +78,13 @@ export default function Login() {
           <h1 className="text-2xl font-bold text-brand-950">Pacemaker Institute</h1>
           <p className="text-slate-500 text-sm mt-1">{t('auth.signInToAccount')}</p>
         </div>
+
+        {health.status === "down" && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
+            <ServerCrash className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{health.detail}</span>
+          </div>
+        )}
 
         <Card className="border-slate-200/80 shadow-sm">
           <CardHeader className="pb-4">

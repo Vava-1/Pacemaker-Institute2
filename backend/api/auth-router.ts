@@ -99,9 +99,10 @@ export const authRouter = createRouter({
         await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, userId));
         
         // Send OTP email
-        sendOtpEmail(input.email, input.name, otp).catch((err) =>
-          logger.error("Failed to send OTP email", { error: err, email: input.email })
-        );
+        const otpSent = await sendOtpEmail(input.email, input.name, otp);
+        if (!otpSent.success && !env.isProduction) {
+          logger.info(`[DEV] OTP for ${input.email}: ${otp}`);
+        }
         
         sendWelcomeEmail(input.email, input.name).catch((err) =>
           logger.error("Failed to send welcome email", { error: err, email: input.email })
@@ -113,7 +114,6 @@ export const authRouter = createRouter({
           success: true, 
           userId, 
           message: "Registration successful. Please check your email for the OTP code to verify your account.",
-          ...(env.isDevelopment ? { devOtp: otp } : {}),
         };
       } catch (err: any) {
         logger.error("Registration failed", { error: err.message, email: input.email });
@@ -371,15 +371,15 @@ export const authRouter = createRouter({
       
       await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, user.id));
       
-      sendOtpEmail(user.email, user.name ?? 'User', otp).catch((err) =>
-        logger.error("Failed to resend OTP email", { error: err, email: user.email })
-      );
+      const otpSent = await sendOtpEmail(user.email, user.name ?? 'User', otp);
+      if (!otpSent.success && !env.isProduction) {
+        logger.info(`[DEV] Resent OTP for ${user.email}: ${otp}`);
+      }
       
       logger.info("OTP resent", { userId: user.id });
       
       return { 
         message: "OTP sent successfully",
-        ...(env.isDevelopment ? { devOtp: otp } : {}),
       };
     }),
 

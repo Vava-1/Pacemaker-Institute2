@@ -38,14 +38,14 @@ export default function SearchResults() {
 
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
-            {t('common.search') || 'Search'}
+            {t('common.search')}
           </h1>
           <form onSubmit={handleSearch} className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <Input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={t('nav.searchPlaceholder') || 'Search courses, blog posts, instructors...'}
+              placeholder={t('nav.searchPlaceholder')}
               className="pl-10 h-12 text-base border-slate-200/80 focus-visible:ring-blue-500"
             />
           </form>
@@ -60,7 +60,7 @@ export default function SearchResults() {
         {!isLoading && query && data && data.total === 0 && (
           <div className="text-center py-20">
             <Search className="h-12 w-12 mx-auto text-slate-300 mb-4" />
-            <h2 className="text-xl font-semibold text-slate-700 mb-2">{t('courses.noCourses') || 'No results found'}</h2>
+            <h2 className="text-xl font-semibold text-slate-700 mb-2">{t('courses.noCoursesFound')}</h2>
             <p className="text-slate-500">{t('courses.noCoursesDesc') || 'Try adjusting your search query'}</p>
           </div>
         )}
@@ -68,7 +68,7 @@ export default function SearchResults() {
         {!isLoading && data && data.total > 0 && (
           <div className="space-y-10">
             {data.courses.length > 0 && (
-              <Section title={t('nav.courses') || 'Courses'} icon={<BookOpen className="h-5 w-5 text-blue-600" />}>
+              <Section title={t('nav.courses')} icon={<BookOpen className="h-5 w-5 text-blue-600" />}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {data.courses.map((course: any) => (
                     <Link key={`course-${course.id}`} to={`/courses/${course.slug}`}>
@@ -100,13 +100,13 @@ export default function SearchResults() {
                   ))}
                 </div>
                 <Link to={`/courses?search=${encodeURIComponent(query)}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium mt-3">
-                  {t('common.viewAll') || 'View all courses'} <ArrowRight className="h-4 w-4" />
+                  {t('common.viewAll')} <ArrowRight className="h-4 w-4" />
                 </Link>
               </Section>
             )}
 
             {data.blogs.length > 0 && (
-              <Section title={t('nav.blog') || 'Blog Posts'} icon={<FileText className="h-5 w-5 text-emerald-600" />}>
+              <Section title={t('nav.blog')} icon={<FileText className="h-5 w-5 text-emerald-600" />}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {data.blogs.map((blog: any) => (
                     <Link key={`blog-${blog.id}`} to={`/blog/${blog.slug}`}>
@@ -135,7 +135,7 @@ export default function SearchResults() {
             )}
 
             {data.instructors.length > 0 && (
-              <Section title={t('common.instructors') || 'Instructors'} icon={<Users className="h-5 w-5 text-purple-600" />}>
+              <Section title={t('common.instructors')} icon={<Users className="h-5 w-5 text-purple-600" />}>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {data.instructors.map((instructor: any) => (
                     <Card key={`instructor-${instructor.id}`} className="border-slate-200/80">
@@ -158,7 +158,7 @@ export default function SearchResults() {
             )}
 
             {data.categories.length > 0 && (
-              <Section title={t('common.categories') || 'Categories'} icon={<Tags className="h-5 w-5 text-amber-600" />}>
+              <Section title={t('common.categories')} icon={<Tags className="h-5 w-5 text-amber-600" />}>
                 <div className="flex flex-wrap gap-3">
                   {data.categories.map((cat: any) => (
                     <Link key={`category-${cat.id}`} to={`/courses?category=${cat.slug}`}>
