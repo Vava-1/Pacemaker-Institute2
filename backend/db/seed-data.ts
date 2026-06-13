@@ -111,7 +111,10 @@ async function seed() {
     14: { price: 200000, original: 250000 },
     15: { price: 180000, original: 220000 },
     16: { price: 150000, original: 180000 },
-    17: { price: 200000, original: 250000 },
+     17: { price: 200000, original: 250000 },
+     18: { price: 150000, original: 180000 },
+     19: { price: 150000, original: 180000 },
+     20: { price: 150000, original: 180000 },
   };
   for (const [cid, p] of Object.entries(rwfPrices)) {
     await conn.execute("UPDATE courses SET price = ?, original_price = ?, currency = 'rwf' WHERE id = ?", [p.price, p.original, Number(cid)]);

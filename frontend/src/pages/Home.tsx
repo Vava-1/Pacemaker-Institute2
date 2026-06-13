@@ -256,7 +256,7 @@ export default function Home() {
             <h2 className="text-2xl md:text-3xl font-bold text-brand-950">{t('impact.title')}</h2>
             <p className="text-sm md:text-base text-slate-500 mt-2">{t('impact.subtitle')}</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
             <div className="group relative bg-gradient-to-br from-green-100 to-emerald-50 rounded-xl border border-green-200 p-5 md:p-6 text-center hover:border-green-300 hover:shadow-md hover:shadow-green-100 transition-all duration-300">
               <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
                 <Users className="h-5 w-5 text-green-600" />
@@ -283,15 +283,6 @@ export default function Home() {
                 {platformStats ? <AnimatedCounter value={String(platformStats.totalCourses)} suffix="+" /> : "—"}
               </div>
               <div className="mt-1 text-slate-500 text-xs md:text-sm">Available Courses</div>
-            </div>
-            <div className="group relative bg-gradient-to-br from-emerald-100 to-teal-50 rounded-xl border border-emerald-200 p-5 md:p-6 text-center hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 transition-all duration-300">
-              <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div className="text-2xl md:text-3xl font-bold text-brand-950">
-                {platformStats ? <AnimatedCounter value={String(platformStats.completedCourses)} suffix="+" /> : "—"}
-              </div>
-              <div className="mt-1 text-slate-500 text-xs md:text-sm">Courses Completed</div>
             </div>
             <div className="group relative bg-gradient-to-br from-green-100 to-emerald-50 rounded-xl border border-green-200 p-5 md:p-6 text-center hover:border-green-300 hover:shadow-md hover:shadow-green-100 transition-all duration-300">
               <div className="w-10 h-10 mx-auto mb-3 rounded-lg bg-white/80 flex items-center justify-center group-hover:bg-white transition-colors">
