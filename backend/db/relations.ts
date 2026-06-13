@@ -162,6 +162,7 @@ export const aiConversationsRelations = relations(aiConversations, ({ one }) => 
 // ── REFERRALS ──
 export const referralsRelations = relations(referrals, ({ one }) => ({
   referrer: one(users, { fields: [referrals.referrerId], references: [users.id] }),
+  referred: one(users, { fields: [referrals.referredId], references: [users.id] }),
 }));
 
 // ── SUBSCRIPTION PLANS ──

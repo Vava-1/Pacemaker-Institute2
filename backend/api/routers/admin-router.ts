@@ -7,7 +7,7 @@ import {
   badges, reviews, testimonials, blogPosts,
   liveClasses, exerciseAttempts
 } from "@db/schema";
-import { desc, asc, sql, eq, and, gte } from "drizzle-orm";
+import { desc, asc, sql, eq, and, gte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { hashPassword } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -27,10 +27,10 @@ export const adminRouter = createRouter({
     const [blogPostsCount] = await db.select({ count: sql<number>`count(*)` }).from(blogPosts);
     const [badgesCount] = await db.select({ count: sql<number>`count(*)` }).from(badges);
     
-    const revenueResult = await db.select({ total: sql<number>`SUM(amount)` })
+    const revenueResult = await db.select({ total: sql<string>`SUM(amount)` })
       .from(payments).where(eq(payments.status, "completed"));
     
-    const totalRevenueCents = revenueResult[0]?.total || 0;
+    const totalRevenue = parseFloat(revenueResult[0]?.total || "0");
 
     // Enrollments over time (last 7 days)
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -96,7 +96,7 @@ export const adminRouter = createRouter({
       totalUsers: totalUsers?.count ?? 0,
       totalCourses: totalCourses?.count ?? 0,
       totalEnrollments: totalEnrollments?.count ?? 0,
-      totalRevenue: totalRevenueCents / 100,
+      totalRevenue,
       totalCertificates: totalCertificates?.count ?? 0,
       onlineUsers: onlineUsers?.count ?? 0,
       aiChats: aiChats?.count ?? 0,
@@ -311,6 +311,12 @@ export const adminRouter = createRouter({
         Object.entries(updateData).filter(([_, v]) => v !== undefined)
       );
       if (Object.keys(cleaned).length === 0) return { success: true };
+      if (cleaned.slug) {
+        const existingSlug = await db.select().from(courses).where(and(eq(courses.slug, cleaned.slug as string), ne(courses.id, id))).limit(1);
+        if (existingSlug.length > 0) {
+          throw new TRPCError({ code: "CONFLICT", message: "A course with this slug already exists" });
+        }
+      }
       await db.update(courses).set(cleaned).where(eq(courses.id, id));
       logger.info("Course updated", { courseId: id });
       return { success: true };

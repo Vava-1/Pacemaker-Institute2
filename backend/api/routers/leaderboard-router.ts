@@ -44,38 +44,42 @@ export const leaderboardRouter = createRouter({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
-      const existing = await db.select().from(leaderboardEntries)
-        .where(and(
-          eq(leaderboardEntries.userId, ctx.user.id),
-          eq(leaderboardEntries.period, "allTime")
-        ));
+      const periods = ["weekly", "monthly", "allTime"] as const;
 
-      if (existing[0]) {
-        await db.update(leaderboardEntries)
-          .set({
-            totalPoints: (existing[0].totalPoints ?? 0) + input.points,
-            exercisesCompleted: (existing[0].exercisesCompleted ?? 0) + (input.exercisesCompleted ?? 0),
-            correctAnswers: (existing[0].correctAnswers ?? 0) + (input.correctAnswers ?? 0),
-            studyHours: `${(parseFloat(existing[0].studyHours ?? "0") + (input.studyHours ?? 0)).toFixed(2)}`,
-            currentStreak: input.streak ?? existing[0].currentStreak,
-            bestStreak: Math.max(existing[0].bestStreak ?? 0, input.streak ?? 0),
+      for (const period of periods) {
+        const existing = await db.select().from(leaderboardEntries)
+          .where(and(
+            eq(leaderboardEntries.userId, ctx.user.id),
+            eq(leaderboardEntries.period, period)
+          ));
+
+        if (existing[0]) {
+          await db.update(leaderboardEntries)
+            .set({
+              totalPoints: (existing[0].totalPoints ?? 0) + input.points,
+              exercisesCompleted: (existing[0].exercisesCompleted ?? 0) + (input.exercisesCompleted ?? 0),
+              correctAnswers: (existing[0].correctAnswers ?? 0) + (input.correctAnswers ?? 0),
+              studyHours: `${(parseFloat(existing[0].studyHours ?? "0") + (input.studyHours ?? 0)).toFixed(2)}`,
+              currentStreak: input.streak ?? existing[0].currentStreak,
+              bestStreak: Math.max(existing[0].bestStreak ?? 0, input.streak ?? 0),
+              userName: ctx.user.name,
+              userAvatar: ctx.user.avatar,
+            })
+            .where(eq(leaderboardEntries.id, existing[0].id));
+        } else {
+          await db.insert(leaderboardEntries).values({
+            userId: ctx.user.id,
             userName: ctx.user.name,
             userAvatar: ctx.user.avatar,
-          })
-          .where(eq(leaderboardEntries.id, existing[0].id));
-      } else {
-        await db.insert(leaderboardEntries).values({
-          userId: ctx.user.id,
-          userName: ctx.user.name,
-          userAvatar: ctx.user.avatar,
-          totalPoints: input.points,
-          exercisesCompleted: input.exercisesCompleted ?? 0,
-          correctAnswers: input.correctAnswers ?? 0,
-          studyHours: `${(input.studyHours ?? 0).toFixed(2)}`,
-          currentStreak: input.streak ?? 0,
-          bestStreak: input.streak ?? 0,
-          period: "allTime",
-        });
+            totalPoints: input.points,
+            exercisesCompleted: input.exercisesCompleted ?? 0,
+            correctAnswers: input.correctAnswers ?? 0,
+            studyHours: `${(input.studyHours ?? 0).toFixed(2)}`,
+            currentStreak: input.streak ?? 0,
+            bestStreak: input.streak ?? 0,
+            period,
+          });
+        }
       }
 
       return { success: true };

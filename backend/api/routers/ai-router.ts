@@ -108,17 +108,17 @@ export const aiRouter = createRouter({
         .select()
         .from(aiConversations)
         .where(and(eq(aiConversations.id, Number(input.conversationId)), eq(aiConversations.userId, ctx.user.id)))
-        .orderBy(desc(aiConversations.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
+        .limit(1);
 
-      const messages = rows
-        .flatMap((r: any) => (r.messages as any[]) || [])
-        .reverse();
+      const allMessages = (rows[0]?.messages as any[]) || [];
+      const total = allMessages.length;
+      const start = Math.max(0, total - input.offset - input.limit);
+      const end = total - input.offset;
+      const messages = allMessages.slice(start, end).reverse();
 
       return {
         messages,
-        total: messages.length,
+        total,
       };
     }),
 

@@ -55,16 +55,21 @@ function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: strin
 
 function TypewriterText({ text, gradient = '' }: { text: string; gradient?: string }) {
   const [displayed, setDisplayed] = useState('')
+  const textRef = useRef(text)
+  textRef.current = text
 
   useEffect(() => {
+    setDisplayed('')
     let i = 0
     let timer: ReturnType<typeof setInterval>
+    let timeout: ReturnType<typeof setTimeout>
+
     const tick = () => {
       i++
-      setDisplayed(text.slice(0, i))
-      if (i >= text.length) {
+      setDisplayed(textRef.current.slice(0, i))
+      if (i >= textRef.current.length) {
         clearInterval(timer)
-        setTimeout(() => {
+        timeout = setTimeout(() => {
           i = 0
           setDisplayed('')
           timer = setInterval(tick, 40)
@@ -72,7 +77,11 @@ function TypewriterText({ text, gradient = '' }: { text: string; gradient?: stri
       }
     }
     timer = setInterval(tick, 40)
-    return () => clearInterval(timer)
+
+    return () => {
+      clearInterval(timer)
+      clearTimeout(timeout)
+    }
   }, [text])
 
   if (!displayed) return <span className="invisible">{text}</span>

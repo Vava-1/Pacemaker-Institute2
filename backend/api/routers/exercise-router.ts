@@ -58,7 +58,10 @@ export const exerciseRouter = createRouter({
       const exercise = ex[0];
       let isCorrect = false;
 
-      if (exercise.type === "multiple_choice" || exercise.type === "fill_blank") {
+      if (exercise.type === "multiple_choice" || exercise.type === "true_false") {
+        const options = (exercise.options as { text: string; isCorrect: boolean }[]) || [];
+        isCorrect = options.some((o) => o.isCorrect && o.text.trim().toLowerCase() === input.answer.trim().toLowerCase());
+      } else if (exercise.type === "fill_blank") {
         isCorrect = input.answer.trim().toLowerCase() === (exercise.correctAnswer ?? "").trim().toLowerCase();
       }
 

@@ -52,7 +52,7 @@ export const lessonRouter = createRouter({
     }),
 
   markCompleted: authedQuery
-    .input(z.object({ lessonId: z.number() }))
+    .input(z.object({ lessonId: z.number(), watchedSeconds: z.number().optional() }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       
@@ -83,11 +83,11 @@ export const lessonRouter = createRouter({
           enrollmentId: enrollment.id,
           lessonId: lesson.id,
           isCompleted: true,
-          watchedSeconds: lesson.duration || 0,
+          watchedSeconds: input.watchedSeconds ?? lesson.duration ?? 0,
         });
       } else {
         await db.update(lessonProgress)
-          .set({ isCompleted: true, watchedSeconds: lesson.duration || 0, lastAccessedAt: new Date() })
+          .set({ isCompleted: true, watchedSeconds: Math.max(existingProgress[0].watchedSeconds ?? 0, input.watchedSeconds ?? lesson.duration ?? 0), lastAccessedAt: new Date() })
           .where(eq(lessonProgress.id, existingProgress[0].id));
       }
 

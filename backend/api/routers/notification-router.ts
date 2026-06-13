@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { notifications } from "../../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export const notificationRouter = createRouter({
   list: authedQuery.query(async ({ ctx }) => {
@@ -33,8 +33,9 @@ export const notificationRouter = createRouter({
 
   unreadCount: authedQuery.query(async ({ ctx }) => {
     const db = getDb();
-    const result = await db.select().from(notifications)
-      .where(eq(notifications.userId, ctx.user.id));
-    return result.filter((n: any) => !n.isRead).length;
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(eq(notifications.userId, ctx.user.id), eq(notifications.isRead, false)));
+    return result[0]?.count ?? 0;
   }),
 });

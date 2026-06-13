@@ -52,13 +52,13 @@ export type InsertUser = typeof users.$inferInsert;
 export const passwordResets = mysqlTable("password_resets", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
-  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  token: varchar("token", { length: 255 }).notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   userIdx: index("password_resets_user_idx").on(t.userId),
-  tokenIdx: uniqueIndex("password_resets_token_idx").on(t.tokenHash),
+  tokenIdx: uniqueIndex("password_resets_token_idx").on(t.token),
 }));
 
 // ===== CATEGORIES (Disciplines) =====
@@ -363,7 +363,7 @@ export const payments = mysqlTable("payments", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
   userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
   courseId: bigint("course_id", { mode: "number", unsigned: true }).notNull(),
-  amount: int("amount").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).default("0.00").notNull(),
   currency: varchar("currency", { length: 10 }).default("usd").notNull(),
   stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
   stripeSessionId: varchar("stripe_session_id", { length: 255 }),

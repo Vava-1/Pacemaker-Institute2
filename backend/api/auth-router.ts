@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { createRouter, publicProcedure } from "./trpc";
+import { createRouter, publicProcedure, authedQuery } from "./trpc";
 import { getDb } from "./queries/connection";
 import { users, passwordResets } from "@db/schema";
 import { env } from "./lib/env";
@@ -215,7 +215,7 @@ export const authRouter = createRouter({
         
         await db.insert(passwordResets).values({
           userId: user.id,
-          tokenHash: resetToken,
+          token: resetToken,
           expiresAt: new Date(Date.now() + 3600000),
         });
         
@@ -258,13 +258,9 @@ export const authRouter = createRouter({
       return { message: "Password has been reset successfully. You can now log in with your new password." };
     }),
 
-  changePassword: publicProcedure
+  changePassword: authedQuery
     .input(ChangePasswordSchema)
     .mutation(async ({ input, ctx }) => {
-      if (!ctx.user) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "You must be logged in" });
-      }
-      
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const user = userRows[0];

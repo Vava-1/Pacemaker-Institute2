@@ -10,7 +10,7 @@ export const messageRouter = createRouter({
     return db.select().from(chatRooms).orderBy(chatRooms.createdAt);
   }),
 
-  listByRoom: publicQuery
+  listByRoom: authedQuery
     .input(z.object({ roomId: z.number(), limit: z.number().default(50) }))
     .query(async ({ input }) => {
       const db = getDb();

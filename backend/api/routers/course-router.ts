@@ -12,7 +12,7 @@ export const courseRouter = createRouter({
     const instructorResult = await db.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, "instructor"));
     const courseResult = await db.select({ count: sql<number>`count(*)` }).from(courses).where(eq(courses.status, "published"));
     const completedResult = await db.select({ count: sql<number>`count(*)` }).from(enrollments).where(eq(enrollments.isCompleted, true));
-    const ratingResult = await db.select({ avg: sql<string>`avg(rating)` }).from(courses).where(and(eq(courses.status, "published"), sql`rating > 0`));
+    const ratingResult = await db.select({ avg: sql<number>`avg(rating)` }).from(courses).where(and(eq(courses.status, "published"), sql`rating > 0`));
 
     return {
       totalStudents: Number(studentResult[0]?.count ?? 0),

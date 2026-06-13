@@ -1,7 +1,7 @@
 import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { courses, enrollments, exerciseAttempts, leaderboardEntries, certificates, notifications } from "../../db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export const dashboardRouter = createRouter({
   stats: authedQuery.query(async ({ ctx }) => {
@@ -72,11 +72,11 @@ export const dashboardRouter = createRouter({
 });
 
 async function getGlobalRank(db: any, points: number) {
-  const allEntries = await db.select({ totalPoints: leaderboardEntries.totalPoints })
+  const result = await db.select({ rank: sql<number>`COUNT(*) + 1` })
     .from(leaderboardEntries)
-    .where(eq(leaderboardEntries.period, "allTime"))
-    .orderBy(desc(leaderboardEntries.totalPoints));
-
-  const rank = allEntries.findIndex((e: any) => (e.totalPoints ?? 0) <= points) + 1;
-  return rank > 0 ? rank : allEntries.length + 1;
+    .where(and(
+      eq(leaderboardEntries.period, "allTime"),
+      sql`total_points > ${points}`
+    ));
+  return result[0]?.rank ?? 1;
 }

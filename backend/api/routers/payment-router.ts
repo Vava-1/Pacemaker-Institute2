@@ -9,6 +9,15 @@ import { sql } from "drizzle-orm";
 import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
+let stripeInstance: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeInstance) {
+    stripeInstance = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+  }
+  return stripeInstance;
+}
+
 const PAYMENT_METHODS = ["mtn_mobile_money", "airtel_money", "bank_card", "paypal"] as const;
 
 const InitiatePaymentSchema = z.object({
@@ -22,6 +31,12 @@ const ConfirmPaymentSchema = z.object({
 
 const CreateCheckoutSchema = z.object({
   courseId: z.number().positive("Course ID must be positive"),
+  priceId: z.string().startsWith("price_", "Price ID must start with 'price_'"),
+  successUrl: z.string().url("Success URL must be a valid URL"),
+  cancelUrl: z.string().url("Cancel URL must be a valid URL"),
+});
+
+const CreateSubscriptionSchema = z.object({
   priceId: z.string().startsWith("price_", "Price ID must start with 'price_'"),
   successUrl: z.string().url("Success URL must be a valid URL"),
   cancelUrl: z.string().url("Cancel URL must be a valid URL"),
@@ -148,9 +163,8 @@ export const paymentRouter = createRouter({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Payments are not configured" });
       }
 
-      const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
-
       try {
+        const stripe = getStripe();
         const session = await stripe.checkout.sessions.create({
           payment_method_types: ["card"],
           mode: "payment",
@@ -175,6 +189,40 @@ export const paymentRouter = createRouter({
       }
     }),
 
+  createSubscriptionCheckout: protectedProcedure
+    .input(CreateSubscriptionSchema)
+    .mutation(async ({ input, ctx }) => {
+      if (!env.stripeSecretKey) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Payments are not configured" });
+      }
+
+      try {
+        const stripe = getStripe();
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          mode: "subscription",
+          line_items: [{ price: input.priceId, quantity: 1 }],
+          subscription_data: {
+            trial_period_days: 14,
+            metadata: {
+              userId: ctx.user.id.toString(),
+              type: "subscription",
+            },
+          },
+          success_url: input.successUrl,
+          cancel_url: input.cancelUrl,
+          customer_email: ctx.user.email,
+        });
+
+        logger.info("Subscription checkout created", { userId: ctx.user.id, sessionId: session.id });
+
+        return { sessionId: session.id, url: session.url };
+      } catch (err: any) {
+        logger.error("Failed to create subscription checkout", { error: err.message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create subscription checkout" });
+      }
+    }),
+
   verifyPayment: protectedProcedure
     .input(VerifyPaymentSchema)
     .mutation(async ({ input, ctx }) => {
@@ -182,9 +230,8 @@ export const paymentRouter = createRouter({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Payments are not configured" });
       }
 
-      const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
-
       try {
+        const stripe = getStripe();
         const session = await stripe.checkout.sessions.retrieve(input.sessionId);
 
         if (session.metadata?.userId !== ctx.user.id.toString()) {
@@ -258,7 +305,7 @@ export const paymentRouter = createRouter({
 
       if (enrollment.paymentIntentId && env.stripeSecretKey) {
         try {
-          const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+          const stripe = getStripe();
           await stripe.refunds.create({ payment_intent: enrollment.paymentIntentId });
           logger.info("Refund processed", { enrollmentId: enrollment.id, userId: ctx.user.id });
         } catch (err: any) {
