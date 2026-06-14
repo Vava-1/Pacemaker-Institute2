@@ -1,4 +1,4 @@
-import { trpc, clearAuthToken, queryClient } from "@/providers/trpc";
+import { trpc, clearAuthToken, queryClient, setAuthToken } from "@/providers/trpc";
 import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router";
 
@@ -14,6 +14,7 @@ export function useAuth(options?: UseAuthOptions) {
     options ?? {};
 
   const navigate = useNavigate();
+  const refreshMutation = trpc.auth.refresh.useMutation();
 
   const {
     data: user,
@@ -22,9 +23,22 @@ export function useAuth(options?: UseAuthOptions) {
     refetch,
   } = trpc.auth.me.useQuery(undefined, {
     staleTime: 1000 * 60 * 5,
-    retry: 2,
+    retry: false,
     retryDelay: 1000,
   });
+
+  const tryRefresh = useCallback(async () => {
+    const storedRefreshToken = localStorage.getItem("refresh_token");
+    if (!storedRefreshToken) return false;
+    try {
+      const result = await refreshMutation.mutateAsync({ refreshToken: storedRefreshToken });
+      setAuthToken(result.accessToken);
+      localStorage.setItem("refresh_token", result.refreshToken);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [refreshMutation]);
 
   const logout = useCallback(() => {
     clearAuthToken();
@@ -33,7 +47,9 @@ export function useAuth(options?: UseAuthOptions) {
   }, [queryClient, navigate, redirectPath]);
 
   useEffect(() => {
-    if (redirectOnUnauthenticated && !isLoading && !user) {
+    if (isLoading) return;
+    if (user) return;
+    if (redirectOnUnauthenticated) {
       const currentPath = window.location.pathname;
       if (currentPath !== redirectPath) {
         navigate(redirectPath);
@@ -49,7 +65,8 @@ export function useAuth(options?: UseAuthOptions) {
       error,
       logout,
       refresh: refetch,
+      tryRefresh,
     }),
-    [user, isLoading, error, logout, refetch],
+    [user, isLoading, error, logout, refetch, tryRefresh],
   );
 }

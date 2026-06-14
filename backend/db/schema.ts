@@ -203,10 +203,13 @@ export const exercises = mysqlTable("exercises", {
   language: varchar("language", { length: 50 }).default("en"),
   isDaily: boolean("is_daily").default(false),
   dailyDate: varchar("daily_date", { length: 20 }),
+  userId: bigint("user_id", { mode: "number", unsigned: true }),
+  aiGenerated: boolean("ai_generated").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   courseIdx: index("exercises_course_idx").on(t.courseId),
   dailyIdx: index("exercises_daily_idx").on(t.isDaily, t.dailyDate),
+  userDailyIdx: index("exercises_user_daily_idx").on(t.userId, t.dailyDate),
 }));
 
 export type Exercise = typeof exercises.$inferSelect;

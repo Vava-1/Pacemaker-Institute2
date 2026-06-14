@@ -1,4 +1,5 @@
-import { useParams, Link } from 'react-router'
+import { useState, useEffect } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
@@ -6,14 +7,35 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft } from 'lucide-react'
+import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft, Smartphone, CreditCard, Globe, Loader2, ChevronRight, Lock } from 'lucide-react'
 import { toast } from 'sonner'
+
+const PAYMENT_METHODS = [
+  { id: 'mtn_mobile_money', label: 'MTN Mobile Money', icon: Smartphone, color: 'bg-yellow-500' },
+  { id: 'airtel_money', label: 'Airtel Money', icon: Smartphone, color: 'bg-red-500' },
+  { id: 'bank_card', label: 'Bank Card', icon: CreditCard, color: 'bg-blue-600' },
+  { id: 'paypal', label: 'PayPal', icon: Globe, color: 'bg-blue-500' },
+] as const
 
 export default function CourseDetail() {
   const { t } = useTranslation()
   const { slug } = useParams<{ slug: string }>()
   const { user } = useAuth()
   const utils = trpc.useUtils()
+  const [searchParams] = useSearchParams()
+  const [showPayment, setShowPayment] = useState(false)
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
+  const [paymentInfo, setPaymentInfo] = useState<any>(null)
+
+  useEffect(() => {
+    if (searchParams.get('payment_success') === '1') {
+      toast.success('Payment completed! Your enrollment is being processed.')
+      utils.course.myCourses.invalidate()
+    } else if (searchParams.get('payment_cancel') === '1') {
+      toast.error('Payment was cancelled. You can try again.')
+    }
+  }, [searchParams, utils.course.myCourses])
+
   const { data: course } = trpc.course.getBySlug.useQuery({ slug: slug! })
   const { data: myCourses } = trpc.course.myCourses.useQuery(undefined, { enabled: !!user })
   const enroll = trpc.course.enroll.useMutation({
@@ -25,6 +47,29 @@ export default function CourseDetail() {
       }
       utils.course.myCourses.invalidate()
     },
+  })
+
+  const initiatePayment = trpc.payment.initiatePayment.useMutation({
+    onSuccess: (data) => {
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+        return
+      }
+      setPaymentInfo(data)
+      toast.success('Enrollment created! Follow instructions to complete payment.')
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  const confirmPayment = trpc.payment.confirmPayment.useMutation({
+    onSuccess: () => {
+      toast.success('Payment confirmed! Access granted.')
+      utils.course.myCourses.invalidate()
+      setShowPayment(false)
+      setSelectedMethod(null)
+      setPaymentInfo(null)
+    },
+    onError: (err) => toast.error(err.message),
   })
 
   const myEnrollment = myCourses?.find((c: any) => c.id === course?.id)
@@ -160,11 +205,73 @@ export default function CourseDetail() {
                   <Award className="mr-2 h-4 w-4" /> Enrolled
                 </Button>
               ) : isEnrolled && !isPaid ? (
-                <Link to={`/checkout?courseId=${course.id}`}>
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3">
+                showPayment && paymentInfo ? (
+                  <div className="space-y-3 mb-3">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-4 text-center">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mx-auto mb-3">
+                        <Smartphone className="h-6 w-6 text-emerald-600" />
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">Payment Instructions</h4>
+                      <p className="text-xs text-slate-500 mb-1">Amount: <strong>{Number(paymentInfo.amount).toLocaleString()} {paymentInfo.currency.toUpperCase()}</strong></p>
+                      <p className="text-xs text-slate-500 mb-1">Method: <strong>{paymentInfo.method}</strong></p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 my-3 border text-sm">
+                        {paymentInfo.instructions}
+                      </div>
+                      <Button
+                        onClick={() => confirmPayment.mutate({ paymentId: paymentInfo.paymentId })}
+                        disabled={confirmPayment.isPending}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
+                      >
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
+                      </Button>
+                      <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
+                    </div>
+                  </div>
+                ) : showPayment ? (
+                  <div className="space-y-2 mb-3">
+                    <h4 className="font-semibold text-sm text-center mb-2">Choose Payment Method</h4>
+                    {PAYMENT_METHODS.map((method) => {
+                      const Icon = method.icon
+                      const isLoading = initiatePayment.isPending && selectedMethod === method.id
+                      return (
+                        <button
+                          key={method.id}
+                          onClick={() => {
+                            setSelectedMethod(method.id)
+                            initiatePayment.mutate({ courseId: course.id, paymentMethod: method.id })
+                          }}
+                          disabled={initiatePayment.isPending}
+                          className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 hover:shadow-md transition-all disabled:opacity-50 w-full text-left"
+                        >
+                          <div className={`w-9 h-9 rounded-lg ${method.color} flex items-center justify-center flex-shrink-0`}>
+                            {isLoading ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Icon className="h-4 w-4 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-xs text-slate-900 dark:text-slate-100">{method.label}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {method.id === 'mtn_mobile_money' || method.id === 'airtel_money' ? 'Mobile money' : method.id === 'bank_card' ? 'Visa / MasterCard' : 'Pay online'}
+                            </p>
+                          </div>
+                          {isLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-amber-500 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                    <Button variant="ghost" size="sm" className="w-full text-xs text-slate-500" onClick={() => setShowPayment(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
+                    onClick={() => setShowPayment(true)}
+                  >
                     Pay Now — {Number(course.price).toLocaleString()} Frw
                   </Button>
-                </Link>
+                )
               ) : isFree ? (
                 <Button
                   className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
@@ -175,14 +282,74 @@ export default function CourseDetail() {
                   {enroll.isPending ? 'Enrolling...' : 'Enroll Now (Free)'}
                 </Button>
               ) : (
-                <Button
-                  className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
-                  onClick={() => enroll.mutate({ courseId: course.id })}
-                  disabled={enroll.isPending}
-                >
-                  <Award className="mr-2 h-4 w-4" />
-                  {enroll.isPending ? 'Enrolling...' : 'Enroll Now'}
-                </Button>
+                showPayment && paymentInfo ? (
+                  <div className="space-y-3 mb-3">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/30 rounded-lg p-4 text-center">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mx-auto mb-3">
+                        <Smartphone className="h-6 w-6 text-emerald-600" />
+                      </div>
+                      <h4 className="font-semibold text-sm mb-1">Payment Instructions</h4>
+                      <p className="text-xs text-slate-500 mb-1">Amount: <strong>{Number(paymentInfo.amount).toLocaleString()} {paymentInfo.currency.toUpperCase()}</strong></p>
+                      <p className="text-xs text-slate-500 mb-1">Method: <strong>{paymentInfo.method}</strong></p>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 my-3 border text-sm">
+                        {paymentInfo.instructions}
+                      </div>
+                      <Button
+                        onClick={() => confirmPayment.mutate({ paymentId: paymentInfo.paymentId })}
+                        disabled={confirmPayment.isPending}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
+                      >
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
+                      </Button>
+                      <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
+                    </div>
+                  </div>
+                ) : showPayment ? (
+                  <div className="space-y-2 mb-3">
+                    <h4 className="font-semibold text-sm text-center mb-2">Choose Payment Method</h4>
+                    {PAYMENT_METHODS.map((method) => {
+                      const Icon = method.icon
+                      const isLoading = initiatePayment.isPending && selectedMethod === method.id
+                      return (
+                        <button
+                          key={method.id}
+                          onClick={() => {
+                            setSelectedMethod(method.id)
+                            initiatePayment.mutate({ courseId: course.id, paymentMethod: method.id })
+                          }}
+                          disabled={initiatePayment.isPending}
+                          className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 hover:shadow-md transition-all disabled:opacity-50 w-full text-left"
+                        >
+                          <div className={`w-9 h-9 rounded-lg ${method.color} flex items-center justify-center flex-shrink-0`}>
+                            {isLoading ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Icon className="h-4 w-4 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-xs text-slate-900 dark:text-slate-100">{method.label}</p>
+                            <p className="text-[10px] text-slate-500">
+                              {method.id === 'mtn_mobile_money' || method.id === 'airtel_money' ? 'Mobile money' : method.id === 'bank_card' ? 'Visa / MasterCard' : 'Pay online'}
+                            </p>
+                          </div>
+                          {isLoading ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-amber-500 flex-shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 text-slate-400 flex-shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                    <Button variant="ghost" size="sm" className="w-full text-xs text-slate-500" onClick={() => setShowPayment(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
+                    onClick={() => setShowPayment(true)}
+                  >
+                    <Award className="mr-2 h-4 w-4" />
+                    Enroll Now — {Number(course.price).toLocaleString()} Frw
+                  </Button>
+                )
               )}
 
               <div className="space-y-3 text-sm pt-4 border-t border-slate-100 dark:border-slate-800">

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import {
   Target, Zap, Flame, Clock, CheckCircle, XCircle,
-  ArrowRight, GraduationCap, TrendingUp,
+  ArrowRight, GraduationCap, TrendingUp, Sparkles,
 } from 'lucide-react'
 import { BackButton } from '@/components/BackButton'
 
@@ -27,11 +27,13 @@ export default function Exercises() {
 
   const { data: exercises } = trpc.exercise.list.useQuery()
   const { data: stats } = trpc.exercise.stats.useQuery(undefined, { enabled: !!user })
+  const { data: aiExercises, isLoading: aiLoading } = trpc.exercise.getPersonalizedDaily.useQuery(undefined, { enabled: !!user })
   const submit = trpc.exercise.submit.useMutation({
     onSuccess: (data) => {
       setResult(data)
       utils.exercise.stats.invalidate()
       utils.leaderboard.list.invalidate()
+      utils.exercise.getPersonalizedDaily.invalidate()
       if (data.isCorrect) {
         toast.success(`+${data.pointsEarned} points!`, { icon: <Zap className="h-4 w-4 text-amber-500" /> })
       } else {
@@ -39,6 +41,8 @@ export default function Exercises() {
       }
     },
   })
+
+  const allExercises = [...(aiExercises ?? []), ...(exercises ?? [])]
 
   const handleSubmit = () => {
     if (!currentExercise || !user) return
@@ -54,7 +58,7 @@ export default function Exercises() {
     setResult(null)
     setSelectedAnswer('')
     setFillAnswer('')
-    const available = exercises?.filter((e: any) => e.id !== currentExercise?.id) ?? []
+    const available = allExercises.filter((e: any) => e.id !== currentExercise?.id) ?? []
     if (available.length > 0) {
       setCurrentExercise(available[Math.floor(Math.random() * available.length)])
     } else {
@@ -234,7 +238,53 @@ export default function Exercises() {
         </Card>
       </div>
 
+      {/* AI-Generated Personalized Exercises */}
+      {user && (
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="h-5 w-5 text-purple-500" />
+            <h2 className="text-lg md:text-xl font-bold text-brand-950">Today's AI Exercises</h2>
+            {aiLoading && <span className="text-xs text-slate-400 animate-pulse">Generating...</span>}
+          </div>
+          {aiExercises && aiExercises.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {aiExercises.map((ex: any) => {
+                const opts = (ex.options as any[] | null) ?? []
+                return (
+                  <Card key={ex.id} className="hover:shadow-lg transition-all cursor-pointer border-purple-200/80 ring-1 ring-purple-200/50" onClick={() => startExercise(ex)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                          <Sparkles className="h-3 w-3 mr-1" /> AI
+                        </Badge>
+                        <span className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                          <Zap className="h-3 w-3" /> {ex.points} {t('exercises.pts')}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold mb-2">{ex.title}</h3>
+                      <p className="text-sm text-slate-500 mb-3 line-clamp-2">{ex.question}</p>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="flex items-center gap-1"><GraduationCap className="h-3 w-3" /> {opts.length} {t('exercises.options')}</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {t('exercises.estTime')}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          ) : !aiLoading ? (
+            <Card className="border-purple-100 bg-purple-50/30">
+              <CardContent className="p-6 text-center">
+                <Sparkles className="h-8 w-8 text-purple-300 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Enroll in courses to get AI-generated daily exercises tailored to your learning.</p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      )}
+
       {/* Exercise Grid */}
+      <h2 className="text-lg md:text-xl font-bold text-brand-950 mb-4">All Exercises</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {exercises?.map((ex: any) => {
           const opts = (ex.options as any[] | null) ?? []

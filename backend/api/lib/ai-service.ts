@@ -93,7 +93,7 @@ async function callGrok(messages: AiMessage[]): Promise<AiResponse> {
   if (!key) throw new Error("Grok API key not configured");
 
   const body = {
-    model: "grok-beta",
+    model: "grok-2-latest",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -267,4 +267,72 @@ Return ONLY valid JSON, no other text.`;
   });
 
   return result.content;
+}
+
+export interface GeneratedExercise {
+  title: string;
+  question: string;
+  type: "multiple_choice";
+  options: { text: string; isCorrect: boolean }[];
+  correctAnswer: string;
+  explanation: string;
+  difficulty: "easy" | "medium" | "hard";
+  points: number;
+}
+
+export async function generatePersonalizedExercises(params: {
+  userName: string;
+  courses: { title: string; slug: string; categoryName: string }[];
+  accuracy: number;
+  totalExercisesDone: number;
+  language?: string;
+  count?: number;
+}): Promise<GeneratedExercise[]> {
+  const count = params.count ?? 3;
+  const accuracy = params.accuracy;
+  const level = accuracy < 40 ? "beginner" : accuracy < 70 ? "intermediate" : "advanced";
+  const difficulty = accuracy < 40 ? "easy" : accuracy < 70 ? "medium" : "hard";
+  const courseList = params.courses.map((c) => `- ${c.title} (${c.categoryName})`).join("\n");
+  const lang = params.language ? `The exercises should be in ${params.language}.` : "";
+
+  const prompt = `You are a personalized AI tutor for ${params.userName}.
+
+The student has completed ${params.totalExercisesDone} exercises with ${accuracy}% accuracy.
+Their current skill level is "${level}".
+Assign difficulty "${difficulty}" to each exercise.
+
+They are enrolled in these courses:
+${courseList}
+
+Generate ${count} multiple-choice exercises based on the topics from their courses. ${lang}
+
+For each exercise, return a JSON object with:
+- title: short title
+- question: the question text
+- type: "multiple_choice"
+- options: array of 4 objects { text: string, isCorrect: boolean } (exactly one with isCorrect: true)
+- correctAnswer: the correct answer text
+- explanation: brief explanation of the answer
+- difficulty: "${difficulty}"
+- points: number between 5 and 20 based on difficulty
+
+Return ONLY a valid JSON array of exercises, no other text.`;
+
+  const result = await sendMessage({
+    messages: [{ role: "user", content: prompt }],
+    model: "gemini",
+  });
+
+  try {
+    let cleaned = result.content.trim();
+    const codeBlockMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1].trim();
+    }
+    const parsed: GeneratedExercise[] = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    logger.error("Failed to parse AI-generated exercises", { raw: result.content });
+    return [];
+  }
 }

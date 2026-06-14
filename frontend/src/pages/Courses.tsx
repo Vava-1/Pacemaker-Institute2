@@ -137,7 +137,7 @@ export default function Courses() {
     level: levelFilter === 'all' ? undefined : levelFilter,
     search: search || undefined,
   })
-  const { data: myCourses } = trpc.course.myCourses.useQuery()
+  const { data: myCourses, isLoading: myCoursesLoading } = trpc.course.myCourses.useQuery()
 
   const showMyCourses = searchParams.get('my') === '1'
   const hasChildren = children && children.length > 0
@@ -457,7 +457,11 @@ export default function Courses() {
       )}
 
       {/* Main Content */}
-      {showMyCourses && myCourses && myCourses.length > 0 ? (
+      {showMyCourses && myCoursesLoading ? (
+        <div className="flex justify-center py-16">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+        </div>
+      ) : showMyCourses && myCourses && myCourses.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {myCourses.map((course: any) => {
             const linkTo = `/courses/${course.slug}`

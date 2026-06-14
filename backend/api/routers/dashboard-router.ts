@@ -1,7 +1,7 @@
 import { createRouter, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, enrollments, exerciseAttempts, leaderboardEntries, certificates, notifications } from "../../db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { courses, enrollments, exercises, exerciseAttempts, leaderboardEntries, certificates, notifications } from "../../db/schema";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 
 export const dashboardRouter = createRouter({
   stats: authedQuery.query(async ({ ctx }) => {
@@ -51,6 +51,28 @@ export const dashboardRouter = createRouter({
       .limit(5);
 
     return { recentEnrollments };
+  }),
+
+  courseExercises: authedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const myCourseIds = await db.select({ courseId: enrollments.courseId })
+      .from(enrollments)
+      .where(eq(enrollments.userId, ctx.user.id));
+    if (myCourseIds.length === 0) return [];
+    const ids = myCourseIds.map((e) => e.courseId);
+    const exs = await db.select().from(exercises)
+      .where(and(inArray(exercises.courseId, ids), eq(exercises.aiGenerated, false)))
+      .orderBy(desc(exercises.createdAt))
+      .limit(10);
+    const attemptedIds = (await db.select({ exerciseId: exerciseAttempts.exerciseId })
+      .from(exerciseAttempts)
+      .where(eq(exerciseAttempts.userId, ctx.user.id)))
+      .map((a) => a.exerciseId);
+    const attemptedSet = new Set(attemptedIds);
+    return exs.map((ex) => ({
+      ...ex,
+      done: attemptedSet.has(ex.id),
+    }));
   }),
 
   recommendations: authedQuery.query(async () => {

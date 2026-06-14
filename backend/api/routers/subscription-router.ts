@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createRouter, publicQuery, authedQuery } from "../trpc";
 import { getDb } from "../queries/connection";
 import { subscriptionPlans, userSubscriptions, courses, enrollments } from "../../db/schema";
-import { eq, desc, and, or, gte } from "drizzle-orm";
+import { eq, desc, and, or, gte, isNull } from "drizzle-orm";
 
 const TIER_ORDER: Record<string, number> = { free: 0, basic: 1, pro: 2, premium: 3 };
 
@@ -69,7 +69,7 @@ export const subscriptionRouter = createRouter({
           eq(userSubscriptions.status, "active"),
           or(
             gte(userSubscriptions.expiresAt, new Date()),
-            eq(userSubscriptions.expiresAt, null as any),
+            isNull(userSubscriptions.expiresAt),
           ),
         ))
         .limit(1);

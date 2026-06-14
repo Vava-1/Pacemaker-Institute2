@@ -29,23 +29,19 @@ const typeColors: Record<string, string> = {
   system: 'bg-slate-100 text-slate-600',
 }
 
-const mockNotifications = [
-  { id: 1, type: 'course', title: 'New course available!', message: 'French Intermediate (B1-B2) is now live. Enroll today!', link: '/courses/french-intermediate-b1-b2', isRead: false, createdAt: new Date(Date.now() - 300000).toISOString() },
-  { id: 2, type: 'exercise', title: 'Daily exercise completed!', message: 'You earned 10 points. Keep the streak going!', link: '/exercises', isRead: false, createdAt: new Date(Date.now() - 900000).toISOString() },
-  { id: 3, type: 'badge', title: 'New badge earned!', message: 'You earned the "First Steps" badge for completing your first exercise.', link: '/profile', isRead: false, createdAt: new Date(Date.now() - 1800000).toISOString() },
-  { id: 4, type: 'liveClass', title: 'Live class starting soon', message: 'French Conversation Practice starts in 1 hour.', link: '/live-classes', isRead: false, createdAt: new Date(Date.now() - 3600000).toISOString() },
-  { id: 5, type: 'message', title: 'New message in General', message: 'Alice mentioned you in a conversation.', link: '/chat', isRead: true, createdAt: new Date(Date.now() - 7200000).toISOString() },
-  { id: 6, type: 'system', title: 'Welcome to Pacemaker Institute!', message: 'Complete your profile and start your learning journey.', link: '/profile', isRead: true, createdAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 7, type: 'course', title: 'Course recommendation', message: 'Based on your interests, we recommend "AI for Teachers".', link: '/courses/ai-for-teachers', isRead: true, createdAt: new Date(Date.now() - 172800000).toISOString() },
-  { id: 8, type: 'exercise', title: 'Weekly exercise summary', message: 'You completed 12 exercises this week. Great job!', link: '/exercises', isRead: true, createdAt: new Date(Date.now() - 259200000).toISOString() },
-]
-
 export default function Notifications() {
   const { user } = useAuth()
   const { t } = useTranslation()
-  const markRead = trpc.notification.markRead.useMutation()
+  const { data: notifications, isLoading } = trpc.notification.list.useQuery(undefined, { enabled: !!user })
+  const utils = trpc.useUtils()
+  const markRead = trpc.notification.markRead.useMutation({
+    onSuccess: () => utils.notification.list.invalidate(),
+  })
   const markAllRead = trpc.notification.markAllRead.useMutation({
-    onSuccess: () => toast.success(t('notifications.markedAllRead')),
+    onSuccess: () => {
+      toast.success(t('notifications.markedAllRead'))
+      utils.notification.list.invalidate()
+    },
   })
 
   const formatTime = (dateStr: string) => {
@@ -91,8 +87,18 @@ export default function Notifications() {
         </Button>
       </div>
 
+      {isLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+        </div>
+      ) : !notifications || notifications.length === 0 ? (
+        <div className="text-center py-16">
+          <Bell className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500 text-sm">No notifications yet</p>
+        </div>
+      ) : (
       <div className="space-y-2">
-        {mockNotifications.map(notif => {
+        {notifications.map(notif => {
           const Icon = typeIcons[notif.type] ?? Bell
           const colorClass = typeColors[notif.type] ?? 'bg-slate-100 text-slate-600'
           return (
@@ -128,6 +134,7 @@ export default function Notifications() {
           )
         })}
       </div>
+      )}
     </div>
   )
 }

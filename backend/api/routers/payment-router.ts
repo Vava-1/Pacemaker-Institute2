@@ -59,6 +59,7 @@ export const paymentRouter = createRouter({
       const course = (await db.select({
         id: courses.id,
         title: courses.title,
+        slug: courses.slug,
         price: courses.price,
         currency: courses.currency,
       }).from(courses).where(eq(courses.id, input.courseId)).limit(1))[0];
@@ -91,31 +92,70 @@ export const paymentRouter = createRouter({
       const [payment] = await db.insert(payments).values({
         userId: ctx.user.id,
         courseId: input.courseId,
-        amount: Math.round(Number(course.price)),
+        amount: course.price,
         currency: course.currency ?? "rwf",
         status: "pending",
         paymentMethod: input.paymentMethod,
       });
 
       const paymentId = Number(payment.insertId);
+      const hasStripe = !!env.stripeSecretKey;
+
+      // Checkout URL for card/PayPal when Stripe is available
+      let checkoutUrl: string | null = null;
+
+      if (hasStripe && (input.paymentMethod === "bank_card" || input.paymentMethod === "paypal")) {
+        try {
+          const stripe = getStripe();
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: input.paymentMethod === "paypal" ? ["card", "paypal"] : ["card"],
+            mode: "payment",
+            line_items: [{
+              price_data: {
+                currency: course.currency ?? "rwf",
+                product_data: { name: course.title },
+                unit_amount: Math.round(Number(course.price) * 100),
+              },
+              quantity: 1,
+            }],
+            success_url: `${env.frontendUrl}/courses/${course.slug}?payment_success=1`,
+            cancel_url: `${env.frontendUrl}/courses/${course.slug}?payment_cancel=1`,
+            metadata: {
+              userId: ctx.user.id.toString(),
+              courseId: input.courseId.toString(),
+              paymentId: paymentId.toString(),
+              type: "course_purchase",
+            },
+            customer_email: ctx.user.email,
+          });
+          checkoutUrl = session.url;
+          logger.info("Stripe checkout created", { userId: ctx.user.id, courseId: input.courseId, sessionId: session.id });
+        } catch (err: any) {
+          logger.error("Stripe checkout creation failed, falling back to manual", { error: err.message });
+        }
+      }
 
       // Return payment instructions based on method
       const instructions: Record<string, { label: string; details: string }> = {
         mtn_mobile_money: {
           label: "MTN Mobile Money",
-          details: "Dial *182# or use MoMo App. Pay to +250 786 053 720",
+          details: "Dial *182# or use the MoMo App. Send payment to merchant number +250 786 053 720, then click 'I Have Paid — Confirm' below.",
         },
         airtel_money: {
           label: "Airtel Money",
-          details: "Dial *500# or use Airtel Money App. Pay to +250 786 053 720",
+          details: "Dial *500# or use the Airtel Money App. Send payment to merchant number +250 786 053 720, then click 'I Have Paid — Confirm' below.",
         },
         bank_card: {
           label: "Bank Card",
-          details: "Visa / MasterCard. You will be redirected to secure checkout.",
+          details: hasStripe
+            ? "You will be redirected to Stripe's secure checkout page to pay with your card."
+            : "Bank transfer to our account: Equity Bank Rwanda – Account 1004200530720 (Branch: Kigali). Use your name as reference, then click 'I Have Paid — Confirm' below.",
         },
         paypal: {
           label: "PayPal",
-          details: "Pay with your PayPal account. You will be redirected to PayPal.",
+          details: hasStripe
+            ? "You will be redirected to Stripe's secure checkout page to pay with PayPal."
+            : "Send payment via PayPal to payments@pacemakerinstitute.com, then click 'I Have Paid — Confirm' below.",
         },
       };
 
@@ -128,6 +168,7 @@ export const paymentRouter = createRouter({
         method: info.label,
         instructions: info.details,
         enrollmentId: enrollment.id,
+        checkoutUrl,
       };
     }),
 

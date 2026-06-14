@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { label: 'My Courses', href: '/courses?my=1', icon: BookOpen },
   { label: 'Exercises', href: '/exercises', icon: GraduationCap },
   { label: 'Leaderboard', href: '/leaderboard', icon: Trophy },

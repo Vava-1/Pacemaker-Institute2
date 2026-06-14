@@ -16,6 +16,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { data: stats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })
   const { data: activity } = trpc.dashboard.activity.useQuery(undefined, { enabled: !!user })
+  const { data: courseExercises } = trpc.dashboard.courseExercises.useQuery(undefined, { enabled: !!user })
   const { data: recommendations } = trpc.dashboard.recommendations.useQuery(undefined, { enabled: !!user })
   const { t } = useTranslation()
 
@@ -39,12 +40,12 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { label: 'Enrolled', value: stats?.enrolledCourses ?? 0, icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Completed', value: stats?.completedCourses ?? 0, icon: Award, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Exercises', value: stats?.exercisesCompleted ?? 0, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Points', value: stats?.totalPoints ?? 0, icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Accuracy', value: `${stats?.accuracy ?? 0}%`, icon: BarChart3, color: 'text-teal-600', bg: 'bg-teal-50' },
-    { label: 'Streak', value: `${stats?.currentStreak ?? 0}d`, icon: Flame, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'Enrolled', value: stats?.enrolledCourses ?? 0, icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50', link: '/courses?my=1' },
+    { label: 'Completed', value: stats?.completedCourses ?? 0, icon: Award, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/courses?my=1' },
+    { label: 'Exercises', value: stats?.exercisesCompleted ?? 0, icon: Target, color: 'text-purple-600', bg: 'bg-purple-50', link: '/exercises' },
+    { label: 'Points', value: stats?.totalPoints ?? 0, icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50', link: '/leaderboard' },
+    { label: 'Accuracy', value: `${stats?.accuracy ?? 0}%`, icon: BarChart3, color: 'text-teal-600', bg: 'bg-teal-50', link: '/exercises' },
+    { label: 'Streak', value: `${stats?.currentStreak ?? 0}d`, icon: Flame, color: 'text-red-600', bg: 'bg-red-50', link: '/exercises' },
   ]
 
   return (
@@ -68,15 +69,17 @@ export default function Dashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((stat, i) => (
-          <Card key={i} className="border-slate-200/80">
-            <CardContent className="p-3 md:p-5">
-              <div className={`w-8 md:w-10 h-8 md:h-10 rounded-lg ${stat.bg} flex items-center justify-center mb-2 md:mb-3`}>
-                <stat.icon className={`h-4 md:h-5 w-4 md:w-5 ${stat.color}`} />
-              </div>
-              <div className="text-lg md:text-2xl font-bold text-brand-950">{stat.value}</div>
-              <div className="text-[10px] md:text-xs text-slate-500 mt-0.5">{stat.label}</div>
-            </CardContent>
-          </Card>
+          <Link key={i} to={stat.link} className="block group">
+            <Card className="border-slate-200/80 transition-shadow hover:shadow-md cursor-pointer">
+              <CardContent className="p-3 md:p-5">
+                <div className={`w-8 md:w-10 h-8 md:h-10 rounded-lg ${stat.bg} flex items-center justify-center mb-2 md:mb-3`}>
+                  <stat.icon className={`h-4 md:h-5 w-4 md:w-5 ${stat.color}`} />
+                </div>
+                <div className="text-lg md:text-2xl font-bold text-brand-950">{stat.value}</div>
+                <div className="text-[10px] md:text-xs text-slate-500 mt-0.5">{stat.label}</div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
@@ -136,27 +139,27 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid sm:grid-cols-2 gap-3">
-                {[
-                  { title: 'French Greetings', subject: 'Languages', points: 10, done: (stats?.exercisesCompleted ?? 0) > 0 },
-                  { title: 'TOEFL Reading', subject: 'Exam Prep', points: 20, done: (stats?.exercisesCompleted ?? 0) > 2 },
-                  { title: 'AI in Education', subject: 'AI Skills', points: 10, done: (stats?.exercisesCompleted ?? 0) > 5 },
-                  { title: 'Engine Basics', subject: 'Mechanics', points: 20, done: (stats?.exercisesCompleted ?? 0) > 8 },
-                ].map((ex, i) => (
-                  <div key={i} className={`p-4 rounded-xl border ${ex.done ? 'bg-emerald-50/80 border-emerald-200' : 'bg-slate-50/80 border-slate-200/80'}`}>
+                {courseExercises && courseExercises.length > 0 ? courseExercises.map((ex: any, i: number) => (
+                  <div key={ex.id} className={`p-4 rounded-xl border ${ex.done ? 'bg-emerald-50/80 border-emerald-200' : 'bg-slate-50/80 border-slate-200/80'}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline" className="text-xs font-normal text-slate-500">{ex.subject}</Badge>
-                      <span className="text-xs font-medium text-amber-600">+{ex.points} pts</span>
+                      <Badge variant="outline" className="text-xs font-normal text-slate-500 capitalize">{ex.difficulty ?? 'general'}</Badge>
+                      <span className="text-xs font-medium text-amber-600">+{ex.points ?? 10} pts</span>
                     </div>
                     <h4 className="font-medium text-sm text-brand-950">{ex.title}</h4>
                     <div className="flex items-center gap-2 mt-3">
                       {ex.done ? (
                         <Badge className="bg-emerald-500 text-white text-xs border-0">Completed</Badge>
                       ) : (
-                        <Link to="/exercises"><Button size="sm" variant="outline" className="h-7 text-xs">Start</Button></Link>
+                        <Link to={`/exercises/${ex.id}`}><Button size="sm" variant="outline" className="h-7 text-xs">Start</Button></Link>
                       )}
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="col-span-2 text-center py-8">
+                    <Target className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm text-slate-500">No exercises available yet for your enrolled courses</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

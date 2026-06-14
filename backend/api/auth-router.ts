@@ -138,6 +138,10 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "This account has been suspended. Please contact support." });
       }
       
+      if (!user.emailVerified) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Please verify your email before logging in. Check your inbox for the verification code." });
+      }
+
       const isValid = await verifyPassword(input.password, user.passwordHash);
       if (!isValid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
@@ -173,7 +177,7 @@ export const authRouter = createRouter({
       }
       
       const db = getDb();
-      const userRows = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+      const userRows = await db.select().from(users).where(eq(users.id, Number(payload.sub))).limit(1);
       const user = userRows[0];
       
       if (!user) {

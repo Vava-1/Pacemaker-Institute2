@@ -18,12 +18,14 @@ import { useState } from 'react'
 export function Navbar() {
   const { t } = useTranslation()
 
+  const { user, logout } = useAuth()
+
   const navLinks: { label: string; href: string; badge?: string }[] = [
     { label: t('nav.home'), href: '/' },
     { label: t('nav.courses'), href: '/courses' },
     { label: t('nav.blog'), href: '/blog' },
+    ...(user ? [{ label: 'Dashboard', href: '/dashboard' }] : []),
   ]
-  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchOpen, setSearchOpen] = useState(false)

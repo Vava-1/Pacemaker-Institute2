@@ -52,7 +52,7 @@ export async function createContext(
         studyStreak: users.studyStreak,
       })
       .from(users)
-      .where(eq(users.id, payload.sub))
+      .where(eq(users.id, Number(payload.sub)))
       .limit(1);
 
     if (userRows.length === 0) {
