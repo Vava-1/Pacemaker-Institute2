@@ -1,6 +1,8 @@
 import { env } from "./env";
 import { logger } from "./logger";
 
+const AI_TIMEOUT = 10000;
+
 export type AIModel = "gemini" | "grok" | "deepseek";
 
 interface AiMessage {
@@ -68,6 +70,7 @@ async function callGemini(messages: AiMessage[]): Promise<AiResponse> {
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(AI_TIMEOUT),
     },
   );
 
@@ -109,6 +112,7 @@ async function callGrok(messages: AiMessage[]): Promise<AiResponse> {
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_TIMEOUT),
   });
 
   if (!res.ok) {
@@ -149,6 +153,7 @@ async function callDeepSeek(messages: AiMessage[]): Promise<AiResponse> {
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_TIMEOUT),
   });
 
   if (!res.ok) {

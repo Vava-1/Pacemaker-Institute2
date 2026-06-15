@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   BookOpen, Trophy, Target, Zap, Flame, TrendingUp,
   GraduationCap, Award, Brain, BarChart3, ChevronRight,
+  Sparkles, CircleCheckBig,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,7 +17,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { data: stats } = trpc.dashboard.stats.useQuery(undefined, { enabled: !!user })
   const { data: activity } = trpc.dashboard.activity.useQuery(undefined, { enabled: !!user })
-  const { data: courseExercises } = trpc.dashboard.courseExercises.useQuery(undefined, { enabled: !!user })
+  const { data: aiExercises, isLoading: aiLoading } = trpc.exercise.getPersonalizedDaily.useQuery(undefined, { enabled: !!user })
   const { data: recommendations } = trpc.dashboard.recommendations.useQuery(undefined, { enabled: !!user })
   const { t } = useTranslation()
 
@@ -48,15 +49,22 @@ export default function Dashboard() {
     { label: 'Streak', value: `${stats?.currentStreak ?? 0}d`, icon: Flame, color: 'text-red-600', bg: 'bg-red-50', link: '/exercises' },
   ]
 
+  const todayExercises = aiExercises ?? []
+  const doneCount = todayExercises.filter((e: any) => e.done).length
+  const totalCount = todayExercises.length
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6">
       <BackButton />
-      {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-brand-950">Welcome back, {user.name?.split(' ')[0] ?? 'Learner'}!</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            {stats?.currentStreak ? `🔥 ${stats.currentStreak} day streak! Keep it up!` : 'Start your learning journey today!'}
+            {stats?.currentStreak
+              ? `🔥 ${stats.currentStreak} day streak! Keep it up!`
+              : stats?.rankTier
+                ? `🏆 ${stats.rankTier} tier — ${stats.totalPoints} total points`
+                : 'Start your learning journey today!'}
           </p>
         </div>
         <Link to="/ai-tutor">
@@ -127,42 +135,86 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Daily Exercises */}
+          {/* Today's AI Exercises */}
           <Card className="border-slate-200/80">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base flex items-center gap-2 text-brand-950">
                 <Target className="h-5 w-5 text-emerald-600" /> Today's Exercises
               </CardTitle>
-              <Link to="/exercises">
-                <Button variant="ghost" size="sm" className="text-slate-500 hover:text-blue-600">All Exercises <ChevronRight className="ml-1 h-3 w-3" /></Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                {aiLoading && <span className="text-xs text-slate-400 animate-pulse">Generating...</span>}
+                {totalCount > 0 && (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">
+                    {doneCount}/{totalCount} done
+                  </Badge>
+                )}
+                <Link to="/exercises">
+                  <Button variant="ghost" size="sm" className="text-slate-500 hover:text-blue-600">All <ChevronRight className="ml-1 h-3 w-3" /></Button>
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid sm:grid-cols-2 gap-3">
-                {courseExercises && courseExercises.length > 0 ? courseExercises.map((ex: any, i: number) => (
-                  <div key={ex.id} className={`p-4 rounded-xl border ${ex.done ? 'bg-emerald-50/80 border-emerald-200' : 'bg-slate-50/80 border-slate-200/80'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline" className="text-xs font-normal text-slate-500 capitalize">{ex.difficulty ?? 'general'}</Badge>
-                      <span className="text-xs font-medium text-amber-600">+{ex.points ?? 10} pts</span>
+              {totalCount > 0 ? (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {todayExercises.slice(0, 4).map((ex: any) => (
+                    <div key={ex.id} className={`p-4 rounded-xl border ${ex.done ? 'bg-emerald-50/80 border-emerald-200' : 'bg-slate-50/80 border-slate-200/80'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1">
+                          {ex.aiGenerated && <Sparkles className="h-3 w-3 text-purple-500" />}
+                          <Badge variant="outline" className="text-xs font-normal text-slate-500 capitalize">{ex.difficulty ?? 'general'}</Badge>
+                        </div>
+                        <span className="text-xs font-medium text-amber-600">+{ex.points ?? 10} pts</span>
+                      </div>
+                      <h4 className="font-medium text-sm text-brand-950 truncate">{ex.title}</h4>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{ex.question}</p>
+                      <div className="flex items-center gap-2 mt-3">
+                        {ex.done ? (
+                          <Badge className="bg-emerald-500 text-white text-xs border-0">
+                            <CircleCheckBig className="h-3 w-3 mr-1" /> Completed
+                          </Badge>
+                        ) : (
+                          <Link to="/exercises">
+                            <Button size="sm" variant="outline" className="h-7 text-xs">Start</Button>
+                          </Link>
+                        )}
+                      </div>
                     </div>
-                    <h4 className="font-medium text-sm text-brand-950">{ex.title}</h4>
-                    <div className="flex items-center gap-2 mt-3">
-                      {ex.done ? (
-                        <Badge className="bg-emerald-500 text-white text-xs border-0">Completed</Badge>
-                      ) : (
-                        <Link to={`/exercises/${ex.id}`}><Button size="sm" variant="outline" className="h-7 text-xs">Start</Button></Link>
-                      )}
-                    </div>
-                  </div>
-                )) : (
-                  <div className="col-span-2 text-center py-8">
-                    <Target className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500">No exercises available yet for your enrolled courses</p>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : !aiLoading ? (
+                <div className="text-center py-8">
+                  <Target className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No exercises available yet for your enrolled courses</p>
+                  <Link to="/courses">
+                    <Button size="sm" variant="outline" className="mt-3">Browse Courses</Button>
+                  </Link>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
+
+          {/* Weekly Progress */}
+          {stats && (
+            <Card className="border-slate-200/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2 text-brand-950">
+                  <BarChart3 className="h-5 w-5 text-blue-600" /> This Week
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-amber-50">
+                    <div className="text-xl font-bold text-amber-600">{stats.weeklyPoints ?? 0}</div>
+                    <div className="text-xs text-slate-500">Weekly Points</div>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-purple-50">
+                    <div className="text-xl font-bold text-purple-600">{stats.monthlyPoints ?? 0}</div>
+                    <div className="text-xs text-slate-500">Monthly Points</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Right Sidebar */}
@@ -183,7 +235,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Leaderboard Card */}
+          {/* Rank Card */}
           <Card className="border-slate-200/80">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 text-brand-950">
@@ -193,8 +245,10 @@ export default function Dashboard() {
             <CardContent>
               {stats?.globalRank ? (
                 <div className="text-center py-4">
-                  <div className="text-4xl font-bold text-blue-600">#{stats.globalRank}</div>
-                  <div className="text-sm text-slate-500 mt-1">Global Ranking</div>
+                  <div className="text-4xl font-bold text-blue-600">#{stats.globalRank?.rank ?? stats.rank}</div>
+                  <div className="text-sm text-slate-500 mt-1">
+                    {stats.rankTier ?? 'Bronze'} Tier
+                  </div>
                   <div className="mt-5 flex items-center justify-center gap-6 text-sm">
                     <div className="text-center">
                       <div className="font-bold text-brand-950">{stats.totalPoints}</div>
@@ -204,6 +258,11 @@ export default function Dashboard() {
                     <div className="text-center">
                       <div className="font-bold text-brand-950">{stats.accuracy}%</div>
                       <div className="text-xs text-slate-500 mt-0.5">Accuracy</div>
+                    </div>
+                    <div className="w-px h-8 bg-slate-200" />
+                    <div className="text-center">
+                      <div className="font-bold text-brand-950">{stats.currentStreak}d</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Streak</div>
                     </div>
                   </div>
                 </div>

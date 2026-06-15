@@ -1,10 +1,10 @@
-import { createRouter, authedQuery } from "../trpc";
+import { createRouter, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
-import { courses, enrollments, exercises, exerciseAttempts, leaderboardEntries, certificates, notifications } from "../../db/schema";
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { courses, enrollments, exercises, exerciseAttempts, leaderboardEntries, certificates, notifications, users } from "../../db/schema";
+import { eq, desc, and, inArray } from "drizzle-orm";
 
 export const dashboardRouter = createRouter({
-  stats: authedQuery.query(async ({ ctx }) => {
+  stats: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const userId = ctx.user.id;
 
@@ -12,11 +12,25 @@ export const dashboardRouter = createRouter({
     const attempts = await db.select().from(exerciseAttempts).where(eq(exerciseAttempts.userId, userId));
     const myCerts = await db.select().from(certificates).where(eq(certificates.userId, userId));
     const myNotifications = await db.select().from(notifications).where(eq(notifications.userId, userId));
+    const user = (await db.select().from(users).where(eq(users.id, userId)))[0];
 
-    const totalPoints = attempts.reduce((sum: number, a: any) => sum + (a.pointsEarned ?? 0), 0);
     const exercisesCompleted = attempts.length;
-    const correctAnswers = attempts.filter((a: any) => a.isCorrect).length;
+    const totalPoints = attempts.reduce((sum: number, a: any) => sum + (a.pointsEarned ?? 0), 0);
+    const correctAnswers = attempts.filter((a: any) => a.isCorrect || (a.aiCorrectnessPercent ?? 0) >= 70).length;
     const accuracy = exercisesCompleted > 0 ? Math.round((correctAnswers / exercisesCompleted) * 100) : 0;
+
+    const weekStart = new Date();
+    const day = weekStart.getDay();
+    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+    weekStart.setDate(diff);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const weeklyAttempts = attempts.filter((a: any) => new Date(a.attemptedAt) >= weekStart);
+    const monthlyAttempts = attempts.filter((a: any) => new Date(a.attemptedAt) >= monthStart);
 
     const rankEntry = await db.select().from(leaderboardEntries)
       .where(and(eq(leaderboardEntries.userId, userId), eq(leaderboardEntries.period, "allTime")));
@@ -28,15 +42,19 @@ export const dashboardRouter = createRouter({
       exercisesCompleted,
       accuracy,
       totalPoints,
+      weeklyPoints: user?.weeklyPoints ?? weeklyAttempts.reduce((s: number, a: any) => s + (a.pointsEarned ?? 0), 0),
+      monthlyPoints: user?.monthlyPoints ?? monthlyAttempts.reduce((s: number, a: any) => s + (a.pointsEarned ?? 0), 0),
       certificates: myCerts.length,
       unreadNotifications: myNotifications.filter((n: any) => !n.isRead).length,
-      currentStreak: ctx.user.studyStreak ?? 0,
+      currentStreak: user?.studyStreak ?? 0,
+      longestStreak: user?.longestStreak ?? 0,
+      rankTier: user?.rankTier ?? "Bronze",
       rank: rankEntry[0]?.rank ?? null,
-      globalRank: rankEntry[0] ? await getGlobalRank(db, totalPoints) : null,
+      globalRank: rankEntry[0] ?? null,
     };
   }),
 
-  activity: authedQuery.query(async ({ ctx }) => {
+  activity: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const recentEnrollments = await db.select({
       title: courses.title,
@@ -53,7 +71,7 @@ export const dashboardRouter = createRouter({
     return { recentEnrollments };
   }),
 
-  courseExercises: authedQuery.query(async ({ ctx }) => {
+  courseExercises: protectedProcedure.query(async ({ ctx }) => {
     const db = getDb();
     const myCourseIds = await db.select({ courseId: enrollments.courseId })
       .from(enrollments)
@@ -75,9 +93,9 @@ export const dashboardRouter = createRouter({
     }));
   }),
 
-  recommendations: authedQuery.query(async () => {
+  recommendations: protectedProcedure.query(async () => {
     const db = getDb();
-    let query = db.select({
+    return db.select({
       id: courses.id,
       title: courses.title,
       slug: courses.slug,
@@ -88,17 +106,5 @@ export const dashboardRouter = createRouter({
       price: courses.price,
       categoryId: courses.categoryId,
     }).from(courses).where(eq(courses.status, "published")).orderBy(desc(courses.rating)).limit(6);
-
-    return query;
   }),
 });
-
-async function getGlobalRank(db: any, points: number) {
-  const result = await db.select({ rank: sql<number>`COUNT(*) + 1` })
-    .from(leaderboardEntries)
-    .where(and(
-      eq(leaderboardEntries.period, "allTime"),
-      sql`total_points > ${points}`
-    ));
-  return result[0]?.rank ?? 1;
-}

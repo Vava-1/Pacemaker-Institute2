@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { createRouter, publicQuery, authedQuery } from "../trpc";
+import { createRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
 import { leaderboardEntries } from "../../db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, asc, and } from "drizzle-orm";
 
 export const leaderboardRouter = createRouter({
-  list: publicQuery
+  list: publicProcedure
     .input(z.object({
       period: z.enum(["weekly", "monthly", "allTime"]).default("allTime"),
       limit: z.number().min(1).max(100).default(50),
@@ -13,13 +13,32 @@ export const leaderboardRouter = createRouter({
     .query(async ({ input }) => {
       const db = getDb();
       const period = input?.period ?? "allTime";
-      return db.select().from(leaderboardEntries)
+      const entries = await db.select({
+        id: leaderboardEntries.id,
+        userId: leaderboardEntries.userId,
+        userName: leaderboardEntries.userName,
+        userAvatar: leaderboardEntries.userAvatar,
+        totalPoints: leaderboardEntries.totalPoints,
+        exercisesCompleted: leaderboardEntries.exercisesCompleted,
+        correctAnswers: leaderboardEntries.correctAnswers,
+        currentStreak: leaderboardEntries.currentStreak,
+        bestStreak: leaderboardEntries.bestStreak,
+        rank: leaderboardEntries.rank,
+        accuracy: leaderboardEntries.accuracy,
+        period: leaderboardEntries.period,
+        updatedAt: leaderboardEntries.updatedAt,
+      }).from(leaderboardEntries)
         .where(eq(leaderboardEntries.period, period))
-        .orderBy(desc(leaderboardEntries.totalPoints))
+        .orderBy(asc(leaderboardEntries.rank))
         .limit(input?.limit ?? 50);
+
+      return entries.map((entry, idx) => ({
+        ...entry,
+        rank: entry.rank ?? idx + 1,
+      }));
     }),
 
-  getUserRank: authedQuery
+  getUserRank: protectedProcedure
     .input(z.object({
       period: z.enum(["weekly", "monthly", "allTime"]).default("allTime"),
     }).optional())
@@ -34,7 +53,7 @@ export const leaderboardRouter = createRouter({
       return entry[0] ?? null;
     }),
 
-  update: authedQuery
+  update: protectedProcedure
     .input(z.object({
       points: z.number(),
       exercisesCompleted: z.number().optional(),
@@ -79,6 +98,17 @@ export const leaderboardRouter = createRouter({
             bestStreak: input.streak ?? 0,
             period,
           });
+        }
+      }
+
+      for (const period of periods) {
+        const allEntries = await db.select().from(leaderboardEntries)
+          .where(eq(leaderboardEntries.period, period))
+          .orderBy(desc(leaderboardEntries.totalPoints));
+        for (let i = 0; i < allEntries.length; i++) {
+          await db.update(leaderboardEntries)
+            .set({ rank: i + 1 })
+            .where(eq(leaderboardEntries.id, allEntries[i].id));
         }
       }
 

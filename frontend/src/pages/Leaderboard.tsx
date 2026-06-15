@@ -1,20 +1,29 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Trophy, Flame, Target, Clock, Zap, Crown, Medal, Award,
+  Trophy, Flame, Target, Zap, Crown, Medal, Award,
+  TrendingUp,
 } from 'lucide-react'
 import { BackButton } from '@/components/BackButton'
 
+const TIER_COLORS: Record<string, string> = {
+  Bronze: 'text-amber-700 bg-amber-100',
+  Silver: 'text-slate-600 bg-slate-100',
+  Gold: 'text-yellow-600 bg-yellow-100',
+  Platinum: 'text-cyan-600 bg-cyan-100',
+  Diamond: 'text-blue-600 bg-blue-100',
+}
+
 export default function Leaderboard() {
   const { user } = useAuth()
-  const { t } = useTranslation()
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'allTime'>('allTime')
   const { data: entries } = trpc.leaderboard.list.useQuery({ period, limit: 50 })
   const { data: myRank } = trpc.leaderboard.getUserRank.useQuery({ period }, { enabled: !!user })
+  const { data: myStats } = trpc.exercise.stats.useQuery(undefined, { enabled: !!user })
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="h-5 w-5 text-amber-500" />
@@ -30,6 +39,16 @@ export default function Leaderboard() {
     return 'bg-white border-slate-200/80'
   }
 
+  const getTierBadge = (tier: string | undefined) => {
+    if (!tier) return null
+    const colors = TIER_COLORS[tier] ?? 'text-slate-500 bg-slate-100'
+    return (
+      <Badge className={`${colors} border-0 text-xs font-medium`}>
+        {tier}
+      </Badge>
+    )
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <BackButton />
@@ -37,8 +56,8 @@ export default function Leaderboard() {
         <div className="w-12 md:w-14 h-12 md:h-14 rounded-xl bg-amber-50 flex items-center justify-center mx-auto mb-3 md:mb-4">
           <Trophy className="h-6 md:h-7 w-6 md:w-7 text-amber-500" />
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold text-brand-950 mb-2">{t('leaderboard.title')}</h1>
-        <p className="text-sm md:text-base text-slate-500">{t('leaderboard.description')}</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-brand-950 mb-2">Top Learners</h1>
+        <p className="text-sm md:text-base text-slate-500">See how you rank among learners</p>
       </div>
 
       {/* My Rank Card */}
@@ -51,22 +70,30 @@ export default function Leaderboard() {
                   #{myRank.rank ?? '?'}
                 </div>
                 <div>
-                  <div className="font-semibold text-lg">{t('leaderboard.yourRanking')}</div>
-                  <div className="text-blue-200 text-sm">{t('leaderboard.keepLearning')}</div>
+                  <div className="font-semibold text-lg">Your Ranking</div>
+                  <div className="text-blue-200 text-sm flex items-center gap-2">
+                    <span>{myRank.totalPoints} pts</span>
+                    {myRank.accuracy != null && (
+                      <>
+                        <span>·</span>
+                        <span>{myRank.accuracy}% accuracy</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-6 text-center">
                 <div>
                   <div className="text-2xl font-bold">{myRank.totalPoints}</div>
-                  <div className="text-xs text-blue-200">{t('leaderboard.points')}</div>
+                  <div className="text-xs text-blue-200">Points</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold">{myRank.exercisesCompleted}</div>
-                  <div className="text-xs text-blue-200">{t('leaderboard.exercises')}</div>
+                  <div className="text-xs text-blue-200">Exercises</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{myRank.studyHours}{t('leaderboard.h')}</div>
-                  <div className="text-xs text-blue-200">{t('leaderboard.studyTime')}</div>
+                  <div className="text-2xl font-bold">{myRank.currentStreak}d</div>
+                  <div className="text-xs text-blue-200">Streak</div>
                 </div>
               </div>
             </div>
@@ -74,30 +101,47 @@ export default function Leaderboard() {
         </Card>
       )}
 
+      {user && !myRank && myStats && (
+        <Card className="mb-6 bg-gradient-to-br from-slate-600 to-slate-800 text-white border-0 shadow-elevated">
+          <CardContent className="p-6 text-center">
+            <Trophy className="h-10 w-10 text-amber-400 mx-auto mb-3" />
+            <h3 className="font-semibold text-lg mb-1">Start Earning Points!</h3>
+            <p className="text-slate-300 text-sm mb-4">
+              Complete exercises to appear on the leaderboard. You have {myStats.totalPoints} points so far.
+            </p>
+            <a href="/exercises" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-800 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors">
+              <Target className="h-4 w-4" /> Do Exercises
+            </a>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Period Tabs */}
       <Tabs value={period} onValueChange={(v) => setPeriod(v as any)} className="mb-6">
         <TabsList className="w-full bg-slate-100/80">
-          <TabsTrigger value="weekly" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">{t('leaderboard.thisWeek')}</TabsTrigger>
-          <TabsTrigger value="monthly" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">{t('leaderboard.thisMonth')}</TabsTrigger>
-          <TabsTrigger value="allTime" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">{t('leaderboard.allTime')}</TabsTrigger>
+          <TabsTrigger value="weekly" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">This Week</TabsTrigger>
+          <TabsTrigger value="monthly" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">This Month</TabsTrigger>
+          <TabsTrigger value="allTime" className="flex-1 text-xs data-[state=active]:bg-white data-[state=active]:shadow-xs">All Time</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {/* Top 3 Podium */}
       {entries && entries.length >= 3 && (
         <div className="flex items-end justify-center gap-2 md:gap-4 mb-6 md:mb-8">
+          {/* 2nd Place */}
           <div className="flex flex-col items-center">
-            <div className="w-12 md:w-16 h-12 md:h-16 rounded-full bg-slate-400 flex items-center justify-center text-white text-sm md:text-xl font-bold shadow-sm">
+            <div className="w-12 md:w-16 h-12 md:h-16 rounded-full bg-gradient-to-br from-slate-400 to-slate-300 flex items-center justify-center text-white text-sm md:text-xl font-bold shadow-sm">
               {entries[1].userName?.charAt(0) ?? 'U'}
             </div>
             <div className="mt-1 md:mt-2 text-center">
               <div className="font-medium text-xs md:text-sm text-brand-950 truncate max-w-[72px] md:max-w-none">{entries[1].userName ?? 'User'}</div>
-              <div className="text-[10px] md:text-xs text-slate-500">{entries[1].totalPoints} {t('leaderboard.pts')}</div>
+              <div className="text-[10px] md:text-xs text-slate-500">{entries[1].totalPoints} pts</div>
             </div>
-            <div className="w-16 md:w-24 h-16 md:h-24 bg-slate-200 rounded-t-lg mt-2 md:mt-3 flex items-center justify-center">
+            <div className="w-16 md:w-24 h-16 md:h-24 bg-gradient-to-t from-slate-200 to-slate-100 rounded-t-lg mt-2 md:mt-3 flex items-center justify-center">
               <Medal className="h-5 md:h-8 w-5 md:w-8 text-slate-400" />
             </div>
           </div>
+          {/* 1st Place */}
           <div className="flex flex-col items-center">
             <Crown className="h-5 md:h-6 w-5 md:w-6 text-amber-500 mb-1" />
             <div className="w-14 md:w-20 h-14 md:h-20 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center text-white text-lg md:text-2xl font-bold shadow-sm ring-2 md:ring-4 ring-amber-200">
@@ -105,21 +149,22 @@ export default function Leaderboard() {
             </div>
             <div className="mt-1 md:mt-2 text-center">
               <div className="font-semibold text-xs md:text-base text-brand-950 truncate max-w-[80px] md:max-w-none">{entries[0].userName ?? 'User'}</div>
-              <div className="text-[10px] md:text-xs text-slate-500">{entries[0].totalPoints} {t('leaderboard.pts')}</div>
+              <div className="text-[10px] md:text-xs text-slate-500">{entries[0].totalPoints} pts</div>
             </div>
             <div className="w-20 md:w-28 h-24 md:h-32 bg-gradient-to-t from-amber-200 to-amber-100 rounded-t-lg mt-2 md:mt-3 flex items-center justify-center">
               <Trophy className="h-7 md:h-10 w-7 md:w-10 text-amber-500" />
             </div>
           </div>
+          {/* 3rd Place */}
           <div className="flex flex-col items-center">
             <div className="w-12 md:w-16 h-12 md:h-16 rounded-full bg-gradient-to-br from-orange-400 to-amber-400 flex items-center justify-center text-white text-sm md:text-xl font-bold shadow-sm">
               {entries[2].userName?.charAt(0) ?? 'U'}
             </div>
             <div className="mt-1 md:mt-2 text-center">
               <div className="font-medium text-xs md:text-sm text-brand-950 truncate max-w-[72px] md:max-w-none">{entries[2].userName ?? 'User'}</div>
-              <div className="text-[10px] md:text-xs text-slate-500">{entries[2].totalPoints} {t('leaderboard.pts')}</div>
+              <div className="text-[10px] md:text-xs text-slate-500">{entries[2].totalPoints} pts</div>
             </div>
-            <div className="w-16 md:w-24 h-12 md:h-16 bg-orange-200 rounded-t-lg mt-2 md:mt-3 flex items-center justify-center">
+            <div className="w-16 md:w-24 h-12 md:h-16 bg-gradient-to-t from-orange-200 to-orange-100 rounded-t-lg mt-2 md:mt-3 flex items-center justify-center">
               <Award className="h-5 md:h-8 w-5 md:w-8 text-orange-400" />
             </div>
           </div>
@@ -128,37 +173,46 @@ export default function Leaderboard() {
 
       {/* Full Rankings */}
       <div className="space-y-2">
-        {entries?.map((entry: any, i: number) => (
-          <div key={entry.id} className={`flex items-center gap-4 p-4 rounded-xl border ${getRankBg(i + 1)} card-hover`}>
-            <div className="w-8 flex justify-center">
-              {getRankIcon(i + 1)}
-            </div>
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">
-              {entry.userName?.charAt(0) ?? 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-brand-950 truncate text-sm">{entry.userName ?? 'Anonymous'}</div>
-              <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-                <span className="flex items-center gap-1"><Target className="h-3 w-3" /> {entry.exercisesCompleted}</span>
-                <span className="flex items-center gap-1"><Flame className="h-3 w-3" /> {entry.currentStreak}{t('leaderboard.d')}</span>
-                <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {entry.studyHours}{t('leaderboard.h')}</span>
+        {entries?.map((entry: any, i: number) => {
+          const isMe = user && entry.userId === user.id
+          return (
+            <div key={entry.id} className={`flex items-center gap-4 p-4 rounded-xl border ${getRankBg(i + 1)} ${isMe ? 'ring-2 ring-blue-400' : ''} card-hover`}>
+              <div className="w-8 flex justify-center">
+                {getRankIcon(i + 1)}
+              </div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm ${i < 3 ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : 'bg-blue-600'}`}>
+                {entry.userName?.charAt(0) ?? 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-brand-950 truncate text-sm">{entry.userName ?? 'Anonymous'}</span>
+                  {isMe && <Badge className="bg-blue-100 text-blue-700 border-0 text-[10px]">You</Badge>}
+                  {getTierBadge(entry.rankTier)}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5 flex-wrap">
+                  <span className="flex items-center gap-1"><Target className="h-3 w-3" /> {entry.exercisesCompleted} done</span>
+                  {entry.accuracy != null && (
+                    <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" /> {entry.accuracy}%</span>
+                  )}
+                  <span className="flex items-center gap-1"><Flame className="h-3 w-3" /> {entry.currentStreak}d streak</span>
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="font-bold text-blue-600 flex items-center gap-1 text-sm">
+                  <Zap className="h-4 w-4 text-amber-500" /> {entry.totalPoints}
+                </div>
+                <div className="text-xs text-slate-500">pts</div>
               </div>
             </div>
-            <div className="text-right flex-shrink-0">
-              <div className="font-bold text-blue-600 flex items-center gap-1 text-sm">
-                <Zap className="h-4 w-4 text-amber-500" /> {entry.totalPoints}
-              </div>
-              <div className="text-xs text-slate-500">{t('leaderboard.points')}</div>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {(!entries || entries.length === 0) && (
         <div className="text-center py-10 md:py-16">
           <Trophy className="h-12 md:h-16 w-12 md:w-16 text-slate-200 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-brand-950 mb-2">{t('leaderboard.noEntries')}</h3>
-          <p className="text-slate-500 text-sm">{t('leaderboard.noEntriesDesc')}</p>
+          <h3 className="text-lg font-medium text-brand-950 mb-2">No entries yet</h3>
+          <p className="text-slate-500 text-sm">Be the first to earn points! Complete exercises to get on the leaderboard.</p>
         </div>
       )}
     </div>

@@ -143,8 +143,9 @@ app.get("/api/health", async (c) => {
     services.database = { status: "down", detail: e?.message ?? String(e) };
   }
 
-  // 2. Stripe (only if configured)
-  if (env.stripeSecretKey) {
+  // 2. Stripe (only if configured with a real-looking key)
+  const hasRealStripeKey = env.stripeSecretKey && !env.stripeSecretKey.startsWith("sk_test_...") && env.stripeSecretKey.length > 20;
+  if (hasRealStripeKey) {
     const stripeStart = Date.now();
     try {
       const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });

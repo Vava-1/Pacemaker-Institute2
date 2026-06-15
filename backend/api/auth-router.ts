@@ -393,7 +393,32 @@ export const authRouter = createRouter({
     }
     
     const db = getDb();
-    const userRows = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+    const userRows = await db.select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      avatar: users.avatar,
+      role: users.role,
+      emailVerified: users.emailVerified,
+      isSuspended: users.isSuspended,
+      nativeLanguage: users.nativeLanguage,
+      learningLanguages: users.learningLanguages,
+      totalPoints: users.totalPoints,
+      weeklyPoints: users.weeklyPoints,
+      monthlyPoints: users.monthlyPoints,
+      accuracyPercent: users.accuracyPercent,
+      rankTier: users.rankTier,
+      longestStreak: users.longestStreak,
+      lastSubmissionDate: users.lastSubmissionDate,
+      studyStreak: users.studyStreak,
+      totalStudyMinutes: users.totalStudyMinutes,
+      referralCode: users.referralCode,
+      isOnline: users.isOnline,
+      googleId: users.googleId,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      lastSignInAt: users.lastSignInAt,
+    }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
     
     if (userRows.length === 0) {
       throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
