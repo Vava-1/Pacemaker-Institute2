@@ -17,6 +17,7 @@ declare module "hono" {
 }
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
+import { autoInitialize } from "../db/auto-init";
 import { createGoogleAuthUrl, handleGoogleCallback } from "./lib/google-auth";
 import { webhookRouter } from "./lib/webhook-router";
 import { uploadRouter } from "./lib/upload-router";
@@ -297,6 +298,13 @@ export default app;
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
+
+  // Auto-initialize database (migrations + seed) before accepting traffic
+  try {
+    await autoInitialize();
+  } catch (err: any) {
+    logger.error("Auto-initialization failed, starting server anyway", { error: err.message });
+  }
 
   logger.info("Starting server...");
   logger.info(`Environment: ${env.nodeEnv}`);

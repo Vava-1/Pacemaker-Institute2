@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
-import { createPool, getDb } from "../api/queries/connection";
+import { fileURLToPath } from "url";
+import { getDb } from "../api/queries/connection";
 import {
   categories, courses, modules, lessons, lessonProgress, badges, users, enrollments, notifications, blogPosts, messages, chatRooms,
 } from "./schema";
@@ -710,16 +711,12 @@ async function upsertUser(opts: {
   return inserted[0];
 }
 
-async function seed() {
-  console.log("Checking DATABASE_URL...");
-  if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL environment variable is required");
-    process.exit(1);
-  }
-
-  // Initialize database pool
-  createPool();
+export async function seedDatabase() {
   const db = getDb();
+  if (!db) {
+    console.error("Failed to connect to database — cannot seed");
+    throw new Error("Database connection failed");
+  }
 
   console.log("\nSeeding users...");
   await upsertUser({
@@ -931,7 +928,11 @@ async function seed() {
   console.log("========================================\n");
 }
 
-seed().catch((err) => {
-  console.error("Seeding failed:", err);
-  process.exit(1);
-});
+// Only auto-run when executed directly (not when imported by auto-init.ts)
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] && (process.argv[1] === __filename || process.argv[1].endsWith("seed.ts") || process.argv[1].endsWith("seed.js"))) {
+  seedDatabase().catch((err) => {
+    console.error("Seeding failed:", err);
+    process.exit(1);
+  });
+}
