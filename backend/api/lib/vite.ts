@@ -11,8 +11,6 @@ const __dirname = path.dirname(__filename);
 type App = Hono<{ Bindings: HttpBindings }>;
 
 export function serveStaticFiles(app: App) {
-  const distPath = path.resolve(__dirname, "../dist");
-
   app.use("*", serveStatic({ root: "./dist" }));
 
   app.notFound((c) => {
@@ -20,8 +18,12 @@ export function serveStaticFiles(app: App) {
     if (!accept.includes("text/html")) {
       return c.json({ error: "Not Found" }, 404);
     }
-    const indexPath = path.resolve(distPath, "index.html");
-    const content = fs.readFileSync(indexPath, "utf-8");
-    return c.html(content);
+    const indexPath = path.resolve(process.cwd(), "dist", "index.html");
+    try {
+      const content = fs.readFileSync(indexPath, "utf-8");
+      return c.html(content);
+    } catch {
+      return c.json({ error: "Not Found" }, 404);
+    }
   });
 }
