@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { trpc } from '@/providers/trpc'
@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft, Smartphone, CreditCard, Globe, Loader2, ChevronRight, Lock } from 'lucide-react'
+import { CheckCircle, Clock, Users, Star, BookOpen, Play, Award, ArrowLeft, Smartphone, CreditCard, Globe, Loader2, ChevronRight,  } from 'lucide-react'
 import { toast } from 'sonner'
 
 const PAYMENT_METHODS = [
@@ -222,7 +222,7 @@ export default function CourseDetail() {
                         disabled={confirmPayment.isPending}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
                       >
-                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid â€” Confirm'}
                       </Button>
                       <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
                     </div>
@@ -269,7 +269,7 @@ export default function CourseDetail() {
                     className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
                     onClick={() => setShowPayment(true)}
                   >
-                    Pay Now — {Number(course.price).toLocaleString()} Frw
+                    Pay Now â€” {Number(course.price).toLocaleString()} Frw
                   </Button>
                 )
               ) : isFree ? (
@@ -299,7 +299,7 @@ export default function CourseDetail() {
                         disabled={confirmPayment.isPending}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
                       >
-                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid â€” Confirm'}
                       </Button>
                       <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
                     </div>
@@ -347,7 +347,7 @@ export default function CourseDetail() {
                     onClick={() => setShowPayment(true)}
                   >
                     <Award className="mr-2 h-4 w-4" />
-                    Enroll Now — {Number(course.price).toLocaleString()} Frw
+                    Enroll Now â€” {Number(course.price).toLocaleString()} Frw
                   </Button>
                 )
               )}
@@ -398,3 +398,4 @@ function LockIcon() {
     </svg>
   )
 }
+

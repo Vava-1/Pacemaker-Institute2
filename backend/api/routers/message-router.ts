@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
 import { messages, chatRooms, users } from "../../db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 
 export const messageRouter = createRouter({
   rooms: publicProcedure.query(async () => {
@@ -134,3 +134,4 @@ export const messageRouter = createRouter({
       return { success: true };
     }),
 });
+

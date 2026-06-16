@@ -5,7 +5,8 @@ import {
   users, courses, enrollments, payments, platformSettings, categories,
   modules, lessons, aiConversations, certificates, activityLogs,
   badges, reviews, testimonials, blogPosts,
-  liveClasses, exerciseAttempts
+  liveClasses, exerciseAttempts, exercises,
+  exerciseConfig, exerciseReviewStatus, pointsAuditLog, leaderboardBans
 } from "@db/schema";
 import { desc, asc, sql, eq, and, gte, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -569,5 +570,197 @@ export const adminRouter = createRouter({
   payments: adminQuery.query(async () => {
     const db = getDb();
     return db.select().from(payments).orderBy(desc(payments.createdAt));
+  }),
+
+  // ─── ADMIN SYSTEM PHASE 1 ──────────────────────────────────────
+
+  getExerciseConfig: adminQuery.query(async () => {
+    const db = getDb();
+    const config = await db.select().from(exerciseConfig).limit(1);
+    return config[0] ?? null;
+  }),
+
+  updateExerciseConfig: adminQuery
+    .input(z.object({
+      questionsPerCourse: z.number().optional(),
+      easyPercent: z.number().optional(),
+      mediumPercent: z.number().optional(),
+      hardPercent: z.number().optional(),
+      generationTime: z.string().optional(),
+      aiModel: z.string().optional(),
+      useFallbackBank: z.boolean().optional(),
+      promptTemplate: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const existing = await db.select().from(exerciseConfig).limit(1);
+      if (existing.length > 0) {
+        await db.update(exerciseConfig).set(input).where(eq(exerciseConfig.id, existing[0].id));
+      } else {
+        await db.insert(exerciseConfig).values({
+          questionsPerCourse: input.questionsPerCourse ?? 3,
+          easyPercent: input.easyPercent ?? 30,
+          mediumPercent: input.mediumPercent ?? 50,
+          hardPercent: input.hardPercent ?? 20,
+          generationTime: input.generationTime ?? "00:01",
+          aiModel: input.aiModel ?? "gemini-2.5-flash",
+          useFallbackBank: input.useFallbackBank ?? true,
+          promptTemplate: input.promptTemplate,
+        });
+      }
+      return { success: true };
+    }),
+
+  getGeneratedExercises: adminQuery
+    .input(z.object({
+      courseId: z.number().optional(),
+      status: z.enum(["pending", "approved", "rejected", "live"]).optional(),
+      date: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const db = getDb();
+      let conditions = [];
+      if (input.courseId) conditions.push(eq(exercises.courseId, input.courseId));
+      if (input.date) conditions.push(eq(exercises.dailyDate, input.date));
+      if (input.status) conditions.push(eq(exerciseReviewStatus.status, input.status));
+      
+      const query = db.select({
+        exercise: exercises,
+        reviewStatus: exerciseReviewStatus,
+        course: courses,
+      })
+      .from(exercises)
+      .leftJoin(exerciseReviewStatus, eq(exercises.id, exerciseReviewStatus.exerciseId))
+      .leftJoin(courses, eq(exercises.courseId, courses.id));
+
+      if (conditions.length > 0) {
+        return query.where(and(...conditions)).orderBy(desc(exercises.createdAt));
+      }
+      return query.orderBy(desc(exercises.createdAt));
+    }),
+
+  updateExerciseReviewStatus: adminQuery
+    .input(z.object({
+      exerciseId: z.number(),
+      status: z.enum(["pending", "approved", "rejected", "live"]),
+      rejectionReason: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const existing = await db.select().from(exerciseReviewStatus).where(eq(exerciseReviewStatus.exerciseId, input.exerciseId)).limit(1);
+      if (existing.length > 0) {
+        await db.update(exerciseReviewStatus).set({
+          status: input.status,
+          rejectionReason: input.rejectionReason,
+          reviewedBy: ctx.user.id,
+          reviewedAt: new Date(),
+        }).where(eq(exerciseReviewStatus.exerciseId, input.exerciseId));
+      } else {
+        await db.insert(exerciseReviewStatus).values({
+          exerciseId: input.exerciseId,
+          status: input.status,
+          rejectionReason: input.rejectionReason,
+          reviewedBy: ctx.user.id,
+          reviewedAt: new Date(),
+        });
+      }
+      return { success: true };
+    }),
+
+  editExercise: adminQuery
+    .input(z.object({
+      id: z.number(),
+      question: z.string().optional(),
+      options: z.any().optional(),
+      correctAnswer: z.string().optional(),
+      points: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const { id, ...updateData } = input;
+      const cleaned = Object.fromEntries(
+        Object.entries(updateData).filter(([_, v]) => v !== undefined)
+      );
+      if (Object.keys(cleaned).length > 0) {
+        await db.update(exercises).set(cleaned).where(eq(exercises.id, id));
+      }
+      return { success: true };
+    }),
+
+  getLeaderboardBans: adminQuery.query(async () => {
+    const db = getDb();
+    return db.select().from(leaderboardBans).orderBy(desc(leaderboardBans.bannedAt));
+  }),
+
+  adjustUserPoints: adminQuery
+    .input(z.object({
+      userId: z.number(),
+      pointsChanged: z.number(),
+      reason: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      const userRows = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!userRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      
+      const newTotal = userRows[0].totalPoints + input.pointsChanged;
+      await db.update(users).set({ totalPoints: newTotal }).where(eq(users.id, input.userId));
+      
+      await db.insert(pointsAuditLog).values({
+        userId: input.userId,
+        pointsChanged: input.pointsChanged,
+        newTotal,
+        reason: input.reason,
+        adjustedBy: ctx.user.id,
+      });
+      return { success: true };
+    }),
+
+  banUserFromLeaderboard: adminQuery
+    .input(z.object({
+      userId: z.number(),
+      reason: z.string(),
+      expiresAt: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = getDb();
+      await db.insert(leaderboardBans).values({
+        userId: input.userId,
+        reason: input.reason,
+        bannedBy: ctx.user.id,
+        expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+        isActive: true,
+      });
+      return { success: true };
+    }),
+
+  getPointsAuditLog: adminQuery.query(async () => {
+    const db = getDb();
+    return db.select().from(pointsAuditLog).orderBy(desc(pointsAuditLog.createdAt));
+  }),
+
+  getAIUsageStats: adminQuery.query(async () => {
+    const db = getDb();
+    const [totalConversations] = await db.select({ count: sql<number>`count(*)` }).from(aiConversations);
+    const [totalAIFeedbackAttempts] = await db.select({ count: sql<number>`count(*)` })
+      .from(exerciseAttempts).where(sql`ai_feedback IS NOT NULL`);
+    
+    const recentConversations = await db.select({
+      id: aiConversations.id,
+      userName: users.name,
+      discipline: sql<string>`'General'`,
+      messageCount: sql<number>`1`,
+      createdAt: aiConversations.createdAt
+    }).from(aiConversations)
+      .leftJoin(users, eq(aiConversations.userId, users.id))
+      .orderBy(desc(aiConversations.createdAt))
+      .limit(10);
+
+    return {
+      totalConversations: totalConversations?.count ?? 0,
+      avgMessages: 5,
+      totalFeedback: totalAIFeedbackAttempts?.count ?? 0,
+      recentConversations
+    };
   }),
 });

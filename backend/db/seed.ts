@@ -1,4 +1,5 @@
-import bcrypt from "bcrypt";
+// @ts-expect-error bcryptjs has no types
+import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { fileURLToPath } from "url";
 import { getDb } from "../api/queries/connection";

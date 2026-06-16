@@ -1,7 +1,6 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { env } from "../lib/env";
-import { logger } from "../lib/logger";
 import * as schema from "@db/schema";
 import * as relations from "@db/relations";
 
@@ -10,48 +9,33 @@ const fullSchema = { ...schema, ...relations };
 let pool: mysql.Pool | null = null;
 let instance: any = null;
 
-export function createPool(): mysql.Pool | null {
+export function createPool(): mysql.Pool {
   if (!env.databaseUrl) {
-    logger.warn("DATABASE_URL is not configured — running without database");
-    return null;
+    throw new Error("DATABASE_URL is not configured");
   }
 
-  try {
-    const url = new URL(env.databaseUrl);
-    logger.info("Connecting to database", { host: url.hostname, port: url.port, database: url.pathname.replace(/^\//, "") });
-
-    return mysql.createPool({
-      host: url.hostname,
-      port: Number(url.port) || 3306,
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      database: url.pathname.replace(/^\//, ""),
-      waitForConnections: true,
-      connectionLimit: 5,
-      queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
-      connectTimeout: 10000,
-      idleTimeout: 600000,
-      ssl: env.isProduction ? {} : undefined,
-    } as mysql.PoolOptions);
-  } catch (err: any) {
-    logger.error("Failed to create database pool", { error: err.message });
-    return null;
-  }
+  return mysql.createPool({
+    uri: env.databaseUrl,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    connectTimeout: 10000,
+    idleTimeout: 600000,
+    ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
+  } as mysql.PoolOptions);
 }
 
 export function getDb() {
   if (!instance) {
     pool = createPool();
-    if (pool) {
-      instance = drizzle(pool, { schema: fullSchema, mode: "default" });
-    }
+    instance = drizzle(pool, { schema: fullSchema, mode: "default" });
   }
   return instance;
 }
 
-export function getPool(): mysql.Pool | null {
+export function getPool(): mysql.Pool {
   if (!pool) {
     pool = createPool();
   }

@@ -18,6 +18,7 @@ export type Permission =
   | 'view_live_classes' | 'manage_live_classes'
   | 'view_ai_analytics'
   | 'view_communications' | 'send_announcements'
+  | 'manage_exercises' | 'manage_leaderboard' | 'manage_ai'
 
 export const rolePermissions: Record<Role, Permission[]> = {
   super_admin: [
@@ -36,6 +37,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     'view_live_classes', 'manage_live_classes',
     'view_ai_analytics',
     'view_communications', 'send_announcements',
+    'manage_exercises', 'manage_leaderboard', 'manage_ai',
   ],
   admin: [
     'access_admin', 'view_dashboard', 'view_users', 'create_users', 'edit_users', 'suspend_users',
@@ -53,6 +55,7 @@ export const rolePermissions: Record<Role, Permission[]> = {
     'view_live_classes', 'manage_live_classes',
     'view_ai_analytics',
     'view_communications',
+    'manage_exercises', 'manage_leaderboard',
   ],
   instructor: [
     'access_admin', 'view_dashboard',
@@ -114,6 +117,9 @@ export const sidebarModules: Array<{
   { label: 'Blog', icon: 'FileText', path: '/admin/blog', permission: 'view_blogs' },
   { label: 'Activity Log', icon: 'Activity', path: '/admin/activity-log', permission: 'view_activity_logs' },
   { label: 'Communications', icon: 'MessageSquare', path: '/admin/communications', permission: 'view_communications' },
+  { label: 'Exercises', icon: 'BookOpen', path: '/admin/exercises', permission: 'manage_exercises' },
+  { label: 'Leaderboard', icon: 'Medal', path: '/admin/leaderboard', permission: 'manage_leaderboard' },
+  { label: 'AI Management', icon: 'Brain', path: '/admin/ai-management', permission: 'manage_ai' },
   { label: 'Analytics', icon: 'BarChart3', path: '/admin/analytics', permission: 'view_analytics' },
   { label: 'Settings', icon: 'Settings', path: '/admin/settings', permission: 'view_settings' },
 ]

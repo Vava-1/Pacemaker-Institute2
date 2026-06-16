@@ -543,3 +543,57 @@ export const platformSettings = mysqlTable("platform_settings", {
 }, (t) => ({
   keyIdx: uniqueIndex("platform_settings_key_idx").on(t.settingKey),
 }));
+
+// ===== ADMIN CONFIG & LOGS =====
+export const exerciseConfig = mysqlTable("exercise_config", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  questionsPerCourse: int("questions_per_course").default(3).notNull(),
+  easyPercent: int("easy_percent").default(30).notNull(),
+  mediumPercent: int("medium_percent").default(50).notNull(),
+  hardPercent: int("hard_percent").default(20).notNull(),
+  generationTime: varchar("generation_time", { length: 10 }).default("00:01").notNull(),
+  aiModel: varchar("ai_model", { length: 50 }).default("gemini-2.5-flash").notNull(),
+  useFallbackBank: boolean("use_fallback_bank").default(true).notNull(),
+  promptTemplate: text("prompt_template"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => new Date()),
+});
+
+export const exerciseReviewStatus = mysqlTable("exercise_review_status", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  exerciseId: bigint("exercise_id", { mode: "number", unsigned: true }).notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "live"]).default("pending").notNull(),
+  reviewedBy: bigint("reviewed_by", { mode: "number", unsigned: true }),
+  reviewedAt: timestamp("reviewed_at"),
+  rejectionReason: text("rejection_reason"),
+});
+
+export const pointsAuditLog = mysqlTable("points_audit_log", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  pointsChanged: int("points_changed").notNull(),
+  newTotal: int("new_total").notNull(),
+  reason: text("reason").notNull(),
+  adjustedBy: bigint("adjusted_by", { mode: "number", unsigned: true }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const leaderboardBans = mysqlTable("leaderboard_bans", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  userId: bigint("user_id", { mode: "number", unsigned: true }).notNull(),
+  reason: text("reason").notNull(),
+  bannedBy: bigint("banned_by", { mode: "number", unsigned: true }).notNull(),
+  bannedAt: timestamp("banned_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+export const adminActivityLog = mysqlTable("admin_activity_log", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  adminId: bigint("admin_id", { mode: "number", unsigned: true }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  targetType: varchar("target_type", { length: 50 }).notNull(),
+  targetId: bigint("target_id", { mode: "number", unsigned: true }),
+  details: json("details").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+

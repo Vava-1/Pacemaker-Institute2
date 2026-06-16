@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 import { createRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { getDb } from "../queries/connection";
 import { exercises, exerciseAttempts, enrollments, courses, categories, users, leaderboardEntries } from "../../db/schema";
@@ -249,9 +249,9 @@ export const exerciseRouter = createRouter({
       const attemptedIds = (await db.select({ exerciseId: exerciseAttempts.exerciseId })
         .from(exerciseAttempts)
         .where(eq(exerciseAttempts.userId, ctx.user.id)))
-        .map((a) => a.exerciseId);
+        .map((a: any) => a.exerciseId);
       const attemptedSet = new Set(attemptedIds);
-      return existing.map((ex) => ({
+      return existing.map((ex: any) => ({
         ...ex,
         done: attemptedSet.has(ex.id),
         userScore: null as number | null,
@@ -282,7 +282,7 @@ export const exerciseRouter = createRouter({
     try {
       generated = await generatePersonalizedExercises({
         userName: ctx.user.name ?? "Student",
-        courses: userEnrollments.map((e) => ({
+        courses: userEnrollments.map((e: any) => ({
           title: e.courseTitle,
           slug: e.courseSlug,
           categoryName: e.categoryName,
@@ -327,7 +327,7 @@ export const exerciseRouter = createRouter({
 
     const fresh = await db.select().from(exercises)
       .where(and(eq(exercises.userId, ctx.user.id), eq(exercises.dailyDate, today), eq(exercises.aiGenerated, true)));
-    return fresh.map((ex) => ({ ...ex, done: false, userScore: null }));
+    return fresh.map((ex: any) => ({ ...ex, done: false, userScore: null }));
   }),
 
   getById: publicProcedure
@@ -524,7 +524,7 @@ export const exerciseRouter = createRouter({
       try {
         generated = await generatePersonalizedExercises({
           userName: user?.name ?? "Student",
-          courses: userEnrollments.map((e) => ({
+          courses: userEnrollments.map((e: any) => ({
             title: e.courseTitle,
             slug: e.courseSlug,
             categoryName: e.categoryName,
@@ -599,7 +599,7 @@ export const exerciseRouter = createRouter({
       try {
         generated = await generatePersonalizedExercises({
           userName: user?.name ?? "Student",
-          courses: userEnrollments.map((e) => ({
+          courses: userEnrollments.map((e: any) => ({
             title: e.courseTitle,
             slug: e.courseSlug,
             categoryName: e.categoryName,
@@ -649,3 +649,4 @@ export const exerciseRouter = createRouter({
     return stats;
   }),
 });
+

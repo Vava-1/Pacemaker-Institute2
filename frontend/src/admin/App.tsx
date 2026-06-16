@@ -3,16 +3,14 @@ import { AdminLayout } from './layout/AdminLayout'
 import Overview from './pages/Dashboard'
 import Users from './pages/Users'
 import Courses from './pages/Courses'
+import { Exercises } from './pages/Exercises'
+import { Leaderboard } from './pages/Leaderboard'
+import Payments from './pages/Payments'
+import { AIManagement } from './pages/AIManagement'
+import Notifications from './pages/Notifications'
 import Analytics from './pages/Analytics'
+import Security from './pages/Security'
 import Settings from './pages/Settings'
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-muted-foreground text-lg">{title} — Coming soon</p>
-    </div>
-  )
-}
 
 export function AdminApp() {
   return (
@@ -21,13 +19,13 @@ export function AdminApp() {
         <Route path="/admin" element={<Overview />} />
         <Route path="/admin/users" element={<Users />} />
         <Route path="/admin/courses" element={<Courses />} />
-        <Route path="/admin/exercises" element={<Placeholder title="Exercises" />} />
-        <Route path="/admin/leaderboard" element={<Placeholder title="Leaderboard" />} />
-        <Route path="/admin/payments" element={<Placeholder title="Payments" />} />
-        <Route path="/admin/ai" element={<Placeholder title="AI Management" />} />
-        <Route path="/admin/notifications" element={<Placeholder title="Notifications" />} />
+        <Route path="/admin/exercises" element={<Exercises />} />
+        <Route path="/admin/leaderboard" element={<Leaderboard />} />
+        <Route path="/admin/payments" element={<Payments />} />
+        <Route path="/admin/ai-management" element={<AIManagement />} />
+        <Route path="/admin/notifications" element={<Notifications />} />
         <Route path="/admin/reports" element={<Analytics />} />
-        <Route path="/admin/security" element={<Placeholder title="Security" />} />
+        <Route path="/admin/security" element={<Security />} />
         <Route path="/admin/settings" element={<Settings />} />
       </Route>
     </Routes>

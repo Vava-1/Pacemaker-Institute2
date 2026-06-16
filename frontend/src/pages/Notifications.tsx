@@ -98,7 +98,7 @@ export default function Notifications() {
         </div>
       ) : (
       <div className="space-y-2">
-        {notifications.map(notif => {
+        {notifications.map((notif: any) => {
           const Icon = typeIcons[notif.type] ?? Bell
           const colorClass = typeColors[notif.type] ?? 'bg-slate-100 text-slate-600'
           return (
@@ -138,3 +138,4 @@ export default function Notifications() {
     </div>
   )
 }
+

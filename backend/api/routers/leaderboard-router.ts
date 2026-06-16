@@ -32,7 +32,7 @@ export const leaderboardRouter = createRouter({
         .orderBy(asc(leaderboardEntries.rank))
         .limit(input?.limit ?? 50);
 
-      return entries.map((entry, idx) => ({
+      return entries.map((entry: any, idx: number) => ({
         ...entry,
         rank: entry.rank ?? idx + 1,
       }));

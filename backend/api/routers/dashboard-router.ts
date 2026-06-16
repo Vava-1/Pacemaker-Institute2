@@ -77,7 +77,7 @@ export const dashboardRouter = createRouter({
       .from(enrollments)
       .where(eq(enrollments.userId, ctx.user.id));
     if (myCourseIds.length === 0) return [];
-    const ids = myCourseIds.map((e) => e.courseId);
+    const ids = myCourseIds.map((e: any) => e.courseId);
     const exs = await db.select().from(exercises)
       .where(and(inArray(exercises.courseId, ids), eq(exercises.aiGenerated, false)))
       .orderBy(desc(exercises.createdAt))
@@ -85,9 +85,9 @@ export const dashboardRouter = createRouter({
     const attemptedIds = (await db.select({ exerciseId: exerciseAttempts.exerciseId })
       .from(exerciseAttempts)
       .where(eq(exerciseAttempts.userId, ctx.user.id)))
-      .map((a) => a.exerciseId);
+      .map((a: any) => a.exerciseId);
     const attemptedSet = new Set(attemptedIds);
-    return exs.map((ex) => ({
+    return exs.map((ex: any) => ({
       ...ex,
       done: attemptedSet.has(ex.id),
     }));
