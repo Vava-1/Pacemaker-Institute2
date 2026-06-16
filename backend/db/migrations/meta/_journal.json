@@ -22,6 +22,13 @@
       "when": 1781020800000,
       "tag": "0002_add_processed_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1781107200000,
+      "tag": "0003_otp_hash",
+      "breakpoints": true
     }
   ]
 }

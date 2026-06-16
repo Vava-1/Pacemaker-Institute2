@@ -6,6 +6,7 @@ import { getDb } from "./queries/connection";
 import { users, passwordResets } from "@db/schema";
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
+import bcrypt from "bcryptjs";
 import {
   hashPassword,
   verifyPassword,
@@ -25,6 +26,9 @@ import {
 function generateOtp(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
+
+const otpAttempts = new Map<string, number>();
+const resendAttempts = new Map<string, number>();
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
@@ -94,9 +98,10 @@ export const authRouter = createRouter({
         
         // Generate and store OTP
         const otp = generateOtp();
+        const hashedOtp = await bcrypt.hash(otp, 4);
         const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
         
-        await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, userId));
+        await db.update(users).set({ otpCode: hashedOtp, otpExpiresAt }).where(eq(users.id, userId));
         
         // Send OTP email
         const otpSent = await sendOtpEmail(input.email, input.name, otp);
@@ -317,46 +322,72 @@ export const authRouter = createRouter({
   verifyOtp: publicProcedure
     .input(z.object({ email: z.string().email(), code: z.string().length(6) }))
     .mutation(async ({ input }) => {
+      const key = `otp:${input.email}`;
+      const attempts = otpAttempts.get(key) || 0;
+
+      if (attempts >= 5) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Too many attempts. Request a new OTP.",
+        });
+      }
+
+      otpAttempts.set(key, attempts + 1);
+
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      
+
       if (userRows.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
-      
+
       const user = userRows[0];
-      
+
       if (user.emailVerified) {
         return { message: "Email already verified" };
       }
-      
+
       if (!user.otpCode || !user.otpExpiresAt) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No OTP code found. Please request a new one." });
       }
-      
+
       if (new Date() > new Date(user.otpExpiresAt)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "OTP code has expired. Please request a new one." });
       }
-      
-      if (user.otpCode !== input.code) {
+
+      const isValid = await bcrypt.compare(input.code, user.otpCode);
+      if (!isValid) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid OTP code" });
       }
-      
+
+      otpAttempts.delete(key);
+
       await db.update(users).set({
         emailVerified: true,
         emailVerifyToken: null,
         otpCode: null,
         otpExpiresAt: null,
       }).where(eq(users.id, user.id));
-      
+
       logger.info("Email verified via OTP", { userId: user.id });
-      
+
       return { message: "Email verified successfully" };
     }),
 
   resendOtp: publicProcedure
     .input(z.object({ email: z.string().email() }))
     .mutation(async ({ input }) => {
+      const resendKey = `resend:${input.email}`;
+      const resendCount = resendAttempts.get(resendKey) || 0;
+      if (resendCount >= 3) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "Maximum resend attempts reached. Try again in 1 hour.",
+        });
+      }
+      resendAttempts.set(resendKey, resendCount + 1);
+      setTimeout(() => resendAttempts.delete(resendKey), 60 * 60 * 1000);
+
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
       
@@ -371,9 +402,10 @@ export const authRouter = createRouter({
       }
       
       const otp = generateOtp();
+      const hashedOtp = await bcrypt.hash(otp, 4);
       const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
       
-      await db.update(users).set({ otpCode: otp, otpExpiresAt }).where(eq(users.id, user.id));
+      await db.update(users).set({ otpCode: hashedOtp, otpExpiresAt }).where(eq(users.id, user.id));
       
       const otpSent = await sendOtpEmail(user.email, user.name ?? 'User', otp);
       if (!otpSent.success && !env.isProduction) {

@@ -23,7 +23,7 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["user", "instructor", "admin"]).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
-  otpCode: varchar("otp_code", { length: 6 }),
+  otpCode: text("otp_code"),
   otpExpiresAt: timestamp("otp_expires_at"),
   googleId: varchar("google_id", { length: 255 }),
   unionId: varchar("union_id", { length: 255 }),
