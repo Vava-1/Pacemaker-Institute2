@@ -62,11 +62,7 @@ How to fix:
     JWT_REFRESH_SECRET-> Another random 32+ char string
 ================================================================
 `;
-    if (process.env.NODE_ENV === "production") {
-      throw new Error(banner);
-    } else {
-      console.error(banner);
-    }
+    console.error(banner);
   }
 
   const fallback: Env = {

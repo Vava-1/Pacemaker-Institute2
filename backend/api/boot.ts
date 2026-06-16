@@ -136,8 +136,14 @@ app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 }));
 // Mount upload router
 app.route("/api/upload", uploadRouter);
 
-// ===== Enhanced Health Check =====
-app.get("/api/health", async (c) => {
+// ===== Health Checks =====
+// Immediate-response healthcheck for Railway / orchestrator probes
+app.get("/api/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Detailed health check (may block on downstream services)
+app.get("/api/health/detailed", async (c) => {
   const services: Record<string, { status: "ok" | "down" | "not_configured"; detail?: string; latencyMs?: number }> = {};
 
   // 1. Database
@@ -188,7 +194,7 @@ app.get("/api/health", async (c) => {
   );
 });
 
-// Readiness check
+// Readiness check (tests DB connectivity)
 app.get("/api/ready", async (c) => {
   try {
     const db = getDb();
@@ -199,7 +205,7 @@ app.get("/api/ready", async (c) => {
   }
 });
 
-// Liveness check
+// Liveness check (always succeeds)
 app.get("/api/live", (c) => {
   return c.json({ alive: true, timestamp: new Date().toISOString() });
 });
@@ -256,6 +262,18 @@ app.onError((err, c) => {
   );
 });
 
+// Global error handlers to prevent silent crashes
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+  logger.error("Uncaught Exception", { error: err.message, stack: err.stack });
+});
+
+process.on("unhandledRejection", (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  console.error("UNHANDLED REJECTION:", err);
+  logger.error("Unhandled Rejection", { error: err.message, stack: err.stack });
+});
+
 // Graceful shutdown handlers
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received. Shutting down gracefully...");
@@ -278,6 +296,11 @@ export default app;
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
+
+  logger.info("Starting server...");
+  logger.info(`Environment: ${env.nodeEnv}`);
+  logger.info(`Database URL configured: ${Boolean(env.databaseUrl)}`);
+
   serveStaticFiles(app);
 
   const port = parseInt(env.port || "3000");

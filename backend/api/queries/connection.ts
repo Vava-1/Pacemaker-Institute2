@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import { env } from "../lib/env";
+import { logger } from "../lib/logger";
 import * as schema from "@db/schema";
 import * as relations from "@db/relations";
 
@@ -9,33 +10,41 @@ const fullSchema = { ...schema, ...relations };
 let pool: mysql.Pool | null = null;
 let instance: any = null;
 
-export function createPool(): mysql.Pool {
+export function createPool(): mysql.Pool | null {
   if (!env.databaseUrl) {
-    throw new Error("DATABASE_URL is not configured");
+    logger.warn("DATABASE_URL is not configured — running without database");
+    return null;
   }
 
-  return mysql.createPool({
-    uri: env.databaseUrl,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 10000,
-    connectTimeout: 10000,
-    idleTimeout: 600000,
-    ssl: env.isProduction ? { rejectUnauthorized: true } : undefined,
-  } as mysql.PoolOptions);
+  try {
+    return mysql.createPool({
+      uri: env.databaseUrl,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      connectTimeout: 10000,
+      idleTimeout: 600000,
+      ssl: env.isProduction ? { rejectUnauthorized: true } : undefined,
+    } as mysql.PoolOptions);
+  } catch (err: any) {
+    logger.error("Failed to create database pool", { error: err.message });
+    return null;
+  }
 }
 
 export function getDb() {
   if (!instance) {
     pool = createPool();
-    instance = drizzle(pool, { schema: fullSchema, mode: "default" });
+    if (pool) {
+      instance = drizzle(pool, { schema: fullSchema, mode: "default" });
+    }
   }
   return instance;
 }
 
-export function getPool(): mysql.Pool {
+export function getPool(): mysql.Pool | null {
   if (!pool) {
     pool = createPool();
   }
