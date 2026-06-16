@@ -293,18 +293,17 @@ process.on("SIGINT", async () => {
   }, 5000).unref();
 });
 
-export default app;
+// Auto-initialize database (migrations + seed) before accepting traffic
+// Runs in all environments so Railway deploys always get fresh tables
+try {
+  await autoInitialize();
+} catch (err: any) {
+  logger.error("Auto-initialization failed, starting server anyway", { error: err.message, stack: err.stack });
+}
 
 if (env.isProduction) {
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
-
-  // Auto-initialize database (migrations + seed) before accepting traffic
-  try {
-    await autoInitialize();
-  } catch (err: any) {
-    logger.error("Auto-initialization failed, starting server anyway", { error: err.message });
-  }
 
   logger.info("Starting server...");
   logger.info(`Environment: ${env.nodeEnv}`);
@@ -335,6 +334,11 @@ setInterval(async () => {
       }).where(eq(emailQueue.id, email.id));
     }
   } catch (err: any) {
-    logger.error("Email queue processing error", { error: err.message });
+    logger.error("Email queue processing error", {
+      error: err.message,
+      code: err.code,
+      sqlMessage: err.sqlMessage,
+      sqlState: err.sqlState,
+    });
   }
 }, 5 * 60 * 1000).unref();

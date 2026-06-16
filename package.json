@@ -38,6 +38,7 @@
     "security:scan": "npm audit --audit-level=high",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:script": "tsx scripts/migrate-and-seed.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx backend/db/seed.ts",
     "db:reset": "drizzle-kit push --force && tsx backend/db/seed.ts",

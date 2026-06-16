@@ -14,12 +14,17 @@ export async function autoInitialize() {
 
   // Step 1: Run pending migrations
   try {
-    logger.info("Running database migrations...");
     const migrationsFolder = path.resolve(process.cwd(), "backend/db/migrations");
+    logger.info("Running database migrations from " + migrationsFolder);
     await migrate(db, { migrationsFolder });
     logger.info("Database migrations completed");
   } catch (err: any) {
-    logger.error("Migration failed, continuing startup", { error: err.message });
+    logger.error("Migration failed, continuing startup", {
+      error: err.message,
+      stack: err.stack,
+      code: err.code,
+      sqlMessage: err.sqlMessage,
+    });
     return;
   }
 
@@ -34,6 +39,9 @@ export async function autoInitialize() {
       logger.info("Database already contains data, skipping seed");
     }
   } catch (err: any) {
-    logger.error("Seeding failed, continuing startup", { error: err.message });
+    logger.error("Seeding failed, continuing startup", {
+      error: err.message,
+      stack: err.stack,
+    });
   }
 }
