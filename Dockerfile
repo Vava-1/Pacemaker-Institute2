@@ -3,7 +3,7 @@ FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
@@ -23,6 +23,8 @@ ENV PORT=3000
 COPY --from=builder --chown=pacemaker:nodejs /app/dist ./dist
 COPY --from=builder --chown=pacemaker:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=pacemaker:nodejs /app/package.json ./
+COPY --from=builder --chown=pacemaker:nodejs /app/backend/db ./backend/db
+COPY --from=builder --chown=pacemaker:nodejs /app/drizzle.config.ts ./
 
 RUN mkdir -p /app/uploads && chown pacemaker:nodejs /app/uploads
 

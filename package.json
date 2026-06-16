@@ -22,7 +22,7 @@
     "dev": "vite",
     "build": "vite build && esbuild backend/api/boot.ts --platform=node --bundle --format=esm --outdir=dist --packages=external --banner:js=\"import { createRequire } from 'module';const require = createRequire(import.meta.url);\"",
     "start": "NODE_ENV=production node dist/boot.js",
-    "prestart": "npm run db:push",
+    "prestart": "npm run db:migrate",
     "lint": "eslint .",
     "check": "tsc -b",
     "format": "prettier --write .",

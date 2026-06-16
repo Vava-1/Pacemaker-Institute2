@@ -3,13 +3,11 @@ import path from "path";
 const __dirname = import.meta.dirname;
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { inspectAttr } from "kimi-plugin-inspect-react";
 
 export default defineConfig({
   root: "frontend",
   plugins: [
     devServer({ entry: "backend/api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
-    inspectAttr(),
     react(),
   ],
   resolve: {
