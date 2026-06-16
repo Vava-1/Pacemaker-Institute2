@@ -200,8 +200,9 @@ app.get("/api/ready", async (c) => {
     const db = getDb();
     await db.execute("SELECT 1" as any);
     return c.json({ status: "ready", timestamp: new Date().toISOString() }, 200);
-  } catch {
-    return c.json({ status: "not ready", timestamp: new Date().toISOString() }, 503);
+  } catch (e: any) {
+    logger.error("Database readiness check failed", { error: e?.message ?? String(e) });
+    return c.json({ status: "not ready", detail: e?.message ?? String(e), timestamp: new Date().toISOString() }, 503);
   }
 });
 

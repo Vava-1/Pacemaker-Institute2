@@ -17,16 +17,23 @@ export function createPool(): mysql.Pool | null {
   }
 
   try {
+    const url = new URL(env.databaseUrl);
+    logger.info("Connecting to database", { host: url.hostname, port: url.port, database: url.pathname.replace(/^\//, "") });
+
     return mysql.createPool({
-      uri: env.databaseUrl,
+      host: url.hostname,
+      port: Number(url.port) || 3306,
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      database: url.pathname.replace(/^\//, ""),
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 5,
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000,
       connectTimeout: 10000,
       idleTimeout: 600000,
-      ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
+      ssl: env.isProduction ? {} : undefined,
     } as mysql.PoolOptions);
   } catch (err: any) {
     logger.error("Failed to create database pool", { error: err.message });

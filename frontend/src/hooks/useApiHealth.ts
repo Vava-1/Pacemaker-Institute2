@@ -16,12 +16,13 @@ export function useApiHealth(): HealthStatus {
     function check() {
       fetch("/api/ready", { method: "GET", signal: AbortSignal.timeout(5000) })
         .then(async (r) => {
-          const text = await r.text();
+          let data;
+          try { data = JSON.parse(await r.text()); } catch { data = {}; }
           if (cancelled) return;
           if (r.status === 200) {
             setHealth({ status: "ok" });
           } else if (r.status === 503) {
-            setHealth({ status: "down", detail: "Service is starting up. Please wait a moment." });
+            setHealth({ status: "down", detail: data?.detail || data?.status || "Service is starting up. Please wait." });
           } else if (r.status >= 500) {
             setHealth({ status: "down", detail: `Server error (${r.status}). Please try again.` });
           } else {
