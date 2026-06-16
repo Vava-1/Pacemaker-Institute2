@@ -4,9 +4,8 @@ import { eq, sql } from "drizzle-orm";
 import { env } from "./env";
 import { logger } from "./logger";
 import { getDb } from "../queries/connection";
-import { enrollments, courses, userSubscriptions } from "@db/schema";
+import { enrollments, courses, userSubscriptions, users, processedWebhooks } from "@db/schema";
 import { sendEnrollmentConfirmationEmail } from "./mailer";
-import { users } from "@db/schema";
 
 export const webhookRouter = new Hono();
 
@@ -37,6 +36,13 @@ webhookRouter.post("/stripe", async (c) => {
   }
 
   logger.info("Stripe webhook received", { type: event.type, id: event.id });
+
+  const db = getDb();
+  const existing = await db.select().from(processedWebhooks).where(eq(processedWebhooks.eventId, event.id)).limit(1);
+  if (existing.length > 0) {
+    logger.info("Webhook already processed", { eventId: event.id });
+    return c.json({ success: true, alreadyProcessed: true });
+  }
 
   try {
     switch (event.type) {
@@ -160,6 +166,11 @@ webhookRouter.post("/stripe", async (c) => {
     logger.error("Webhook handler error", { type: event.type, error: err.message });
     // Return 200 to prevent Stripe from retrying on processing errors
   }
+
+  await db.insert(processedWebhooks).values({
+    eventId: event.id,
+    eventType: event.type,
+  }).catch(() => { /* ignore duplicate key errors */ });
 
   return c.json({ success: true, received: true });
 });

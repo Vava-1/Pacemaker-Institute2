@@ -15,6 +15,13 @@
       "when": 1780939269902,
       "tag": "0001_rainy_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1781020800000,
+      "tag": "0002_add_processed_webhooks",
+      "breakpoints": true
     }
   ]
 }

@@ -514,6 +514,14 @@ export const blogPosts = mysqlTable("blog_posts", {
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = typeof blogPosts.$inferInsert;
 
+// ===== PROCESSED WEBHOOKS (Idempotency) =====
+export const processedWebhooks = mysqlTable("processed_webhooks", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  eventId: varchar("event_id", { length: 255 }).notNull().unique(),
+  eventType: varchar("event_type", { length: 100 }).notNull(),
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
+});
+
 // ===== PLATFORM SETTINGS =====
 export const platformSettings = mysqlTable("platform_settings", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
