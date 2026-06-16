@@ -178,6 +178,31 @@ export async function sendCertificateEmail(to: string, name: string, courseName:
   return sendEmail({ to, subject: `Certificate: ${courseName}`, html });
 }
 
+export async function sendEmailWithRetry(
+  to: string,
+  subject: string,
+  body: string,
+  maxRetries = 3,
+): Promise<EmailResult> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await sendEmail({ to, subject, html: body });
+      if (result.success) return result;
+    } catch (err: any) {
+      logger.warn(`Email attempt ${i + 1} failed`, { error: err.message });
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+
+  logger.error("Email failed after all retries", { to, subject });
+
+  if (!env.isProduction) {
+    logger.info(`[DEV EMAIL] To: ${to}, Subject: ${subject}, Body: ${body}`);
+  }
+
+  return { success: false, error: "Email service temporarily unavailable" };
+}
+
 export async function checkSmtpConnection(): Promise<{ ok: boolean; error?: string }> {
   const transporter = getTransporter();
   if (!transporter) {

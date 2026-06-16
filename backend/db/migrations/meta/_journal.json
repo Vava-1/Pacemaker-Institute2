@@ -29,6 +29,13 @@
       "when": 1781107200000,
       "tag": "0003_otp_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1781193600000,
+      "tag": "0004_email_queue",
+      "breakpoints": true
     }
   ]
 }

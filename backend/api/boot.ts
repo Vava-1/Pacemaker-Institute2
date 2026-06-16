@@ -6,6 +6,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import Stripe from "stripe";
+import { eq } from "drizzle-orm";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 
@@ -20,6 +21,8 @@ import { createGoogleAuthUrl, handleGoogleCallback } from "./lib/google-auth";
 import { webhookRouter } from "./lib/webhook-router";
 import { uploadRouter } from "./lib/upload-router";
 import { getDb } from "./queries/connection";
+import { emailQueue } from "@db/schema";
+import { sendEmailWithRetry } from "./lib/mailer";
 
 if (!env.geminiApiKey && !env.grokApiKey && !env.deepseekApiKey) {
   logger.warn("No AI provider keys configured. AI tutor will be disabled.");
@@ -285,3 +288,21 @@ if (env.isProduction) {
     logger.info(`Live check: http://localhost:${port}/api/live`);
   });
 }
+
+setInterval(async () => {
+  try {
+    const db = getDb();
+    const pending = await db.select().from(emailQueue).where(eq(emailQueue.status, "pending")).limit(10);
+
+    for (const email of pending) {
+      const result = await sendEmailWithRetry(email.to, email.subject, email.body);
+      await db.update(emailQueue).set({
+        status: result.success ? "sent" : "failed",
+        attempts: email.attempts + 1,
+        sentAt: result.success ? new Date() : null,
+      }).where(eq(emailQueue.id, email.id));
+    }
+  } catch (err: any) {
+    logger.error("Email queue processing error", { error: err.message });
+  }
+}, 5 * 60 * 1000).unref();

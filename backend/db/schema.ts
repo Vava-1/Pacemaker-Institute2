@@ -514,6 +514,18 @@ export const blogPosts = mysqlTable("blog_posts", {
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type InsertBlogPost = typeof blogPosts.$inferInsert;
 
+// ===== EMAIL QUEUE (Fallback / Retry) =====
+export const emailQueue = mysqlTable("email_queue", {
+  id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
+  to: varchar("to", { length: 320 }).notNull(),
+  subject: varchar("subject", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending"),
+  attempts: int("attempts").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  sentAt: timestamp("sent_at"),
+});
+
 // ===== PROCESSED WEBHOOKS (Idempotency) =====
 export const processedWebhooks = mysqlTable("processed_webhooks", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
