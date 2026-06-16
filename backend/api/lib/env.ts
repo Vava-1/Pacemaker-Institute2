@@ -44,9 +44,9 @@ function parseAndValidate(): Env {
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     const banner = `
-================================================================
+===============================================================
   ENVIRONMENT CONFIGURATION ERROR
-================================================================
+===============================================================
 The following required environment variables are missing or invalid:
 
 ${issues}
@@ -60,9 +60,13 @@ How to fix:
     DATABASE_URL      -> Your MySQL connection string
     JWT_ACCESS_SECRET -> Any random 32+ char string (e.g. openssl rand -hex 32)
     JWT_REFRESH_SECRET-> Another random 32+ char string
-================================================================
+===============================================================
 `;
     console.error(banner);
+
+    if (process.env.NODE_ENV === "production") {
+      process.exit(1);
+    }
   }
 
   const fallback: Env = {
