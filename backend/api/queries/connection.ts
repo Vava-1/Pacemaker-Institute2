@@ -26,7 +26,7 @@ export function createPool(): mysql.Pool | null {
       keepAliveInitialDelay: 10000,
       connectTimeout: 10000,
       idleTimeout: 600000,
-      ssl: env.isProduction ? { rejectUnauthorized: true } : undefined,
+      ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
     } as mysql.PoolOptions);
   } catch (err: any) {
     logger.error("Failed to create database pool", { error: err.message });
