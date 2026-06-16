@@ -6,6 +6,7 @@ import { getDb } from "../queries/connection";
 import { aiConversations } from "@db/schema";
 import { sendMessage, analyzeContent, generateExercises } from "../lib/ai-service";
 import type { AIModel } from "../lib/ai-service";
+import { env } from "../lib/env";
 import { logger } from "../lib/logger";
 
 const SendMessageSchema = z.object({
@@ -39,6 +40,15 @@ export const aiRouter = createRouter({
     .mutation(async ({ input, ctx }) => {
       if (!isContentSafe(input.message)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Message contains prohibited content" });
+      }
+
+      const hasAiKey = env.geminiApiKey || env.grokApiKey || env.deepseekApiKey;
+      if (!hasAiKey) {
+        return {
+          success: false,
+          message: "AI tutor is temporarily unavailable. Please contact support.",
+          fallback: true,
+        };
       }
 
       const db = getDb();

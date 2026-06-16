@@ -21,6 +21,10 @@ import { webhookRouter } from "./lib/webhook-router";
 import { uploadRouter } from "./lib/upload-router";
 import { getDb } from "./queries/connection";
 
+if (!env.geminiApiKey && !env.grokApiKey && !env.deepseekApiKey) {
+  logger.warn("No AI provider keys configured. AI tutor will be disabled.");
+}
+
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 // Security Headers with CSP
