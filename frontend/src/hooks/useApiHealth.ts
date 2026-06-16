@@ -15,10 +15,17 @@ export function useApiHealth(): HealthStatus {
 
     function check() {
       fetch("/api/ready", { method: "GET", signal: AbortSignal.timeout(5000) })
-        .then((r) => r.json())
-        .then((data) => {
-          if (!cancelled) {
-            setHealth(data.status === "ready" ? { status: "ok" } : { status: "down", detail: "Database is not reachable. Ensure Docker MySQL container is running." });
+        .then(async (r) => {
+          const text = await r.text();
+          if (cancelled) return;
+          if (r.status === 200) {
+            setHealth({ status: "ok" });
+          } else if (r.status === 503) {
+            setHealth({ status: "down", detail: "Service is starting up. Please wait a moment." });
+          } else if (r.status >= 500) {
+            setHealth({ status: "down", detail: `Server error (${r.status}). Please try again.` });
+          } else {
+            setHealth({ status: "down", detail: `Unexpected response (${r.status}).` });
           }
         })
         .catch(() => {
@@ -27,7 +34,7 @@ export function useApiHealth(): HealthStatus {
               retries++;
               setTimeout(check, 2000);
             } else {
-              setHealth({ status: "down", detail: "Cannot reach the API server. Make sure 'npm run dev' is running and Docker MySQL is started." });
+              setHealth({ status: "down", detail: "Unable to connect to server. Check your internet connection." });
             }
           }
         });
