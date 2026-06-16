@@ -31,6 +31,8 @@ const EnvSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).default("60000"),
   RATE_LIMIT_MAX: z.string().regex(/^\d+$/).default("100"),
   OWNER_UNION_ID: z.string().optional().or(z.literal("")),
+  RAILWAY_PUBLIC_DOMAIN: z.string().optional().or(z.literal("")),
+  RAILWAY_HOSTNAME: z.string().optional().or(z.literal("")),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -87,10 +89,16 @@ const parsed = parseAndValidate();
 const isProduction = parsed.NODE_ENV === "production";
 
 function derivePublicUrl(): string {
-  if (isProduction && !parsed.FRONTEND_URL && process.env.RENDER_EXTERNAL_HOSTNAME) {
-    return `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
+  if (isProduction && !parsed.FRONTEND_URL) {
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    if (process.env.RAILWAY_HOSTNAME) return `https://${process.env.RAILWAY_HOSTNAME}`;
+    if (process.env.RENDER_EXTERNAL_HOSTNAME) return `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
   }
-  return parsed.FRONTEND_URL;
+  const url = parsed.FRONTEND_URL;
+  if (url === "http://localhost:5173" && process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  }
+  return url;
 }
 
 function deriveGoogleCallback(): string {
@@ -114,6 +122,7 @@ export const env = {
   googleClientId: parsed.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: parsed.GOOGLE_CLIENT_SECRET ?? "",
   googleCallbackUrl: deriveGoogleCallback(),
+  anthropicApiKey: parsed.ANTHROPIC_API_KEY ?? "",
   grokApiKey: parsed.GROK_API_KEY ?? "",
   geminiApiKey: parsed.GEMINI_API_KEY ?? "",
   deepseekApiKey: parsed.DEEPSEEK_API_KEY ?? "",

@@ -173,6 +173,10 @@ async function callDeepSeek(messages: AiMessage[]): Promise<AiResponse> {
   };
 }
 
+function hasAnyKey(): boolean {
+  return !!(env.geminiApiKey || env.grokApiKey || env.deepseekApiKey || env.anthropicApiKey);
+}
+
 function getFallbackChain(model: AIModel): AIModel[] {
   const order: Record<AIModel, AIModel[]> = {
     gemini: ["gemini", "deepseek", "grok"],
@@ -201,6 +205,15 @@ export async function sendMessage(params: {
   model?: AIModel;
   discipline?: string;
 }): Promise<AiResponse> {
+  if (!hasAnyKey()) {
+    logger.warn("AI service called but no API keys are configured");
+    return {
+      content: "I'm sorry, the AI tutor service is currently unavailable. Please contact support to enable this feature.",
+      model: "gemini",
+      usage: { inputTokens: 0, outputTokens: 0 },
+    };
+  }
+
   const preferredModel = params.model ?? detectModel(
     params.messages[params.messages.length - 1]?.content ?? "",
     params.discipline,
