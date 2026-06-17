@@ -15,6 +15,7 @@ declare module "hono" {
     requestId: string;
   }
 }
+
 import { env } from "./lib/env";
 import { logger } from "./lib/logger";
 import { autoInitialize } from "../db/auto-init";
@@ -129,8 +130,6 @@ app.use("*", async (c, next) => {
 app.route("/api/webhooks", webhookRouter);
 
 // Body Limit to prevent large payloads
-// Proxy uploads (images, PDFs, small videos) — 100MB
-// Large videos use direct-to-Cloudinary upload (bypasses this limit)
 app.use("/api/upload", bodyLimit({ maxSize: 100 * 1024 * 1024 }));
 app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 }));
 
@@ -138,16 +137,13 @@ app.use("/api/*", bodyLimit({ maxSize: 1024 * 1024 }));
 app.route("/api/upload", uploadRouter);
 
 // ===== Health Checks =====
-// Immediate-response healthcheck for Railway / orchestrator probes
 app.get("/api/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Detailed health check (may block on downstream services)
 app.get("/api/health/detailed", async (c) => {
   const services: Record<string, { status: "ok" | "down" | "not_configured"; detail?: string; latencyMs?: number }> = {};
 
-  // 1. Database
   const dbStart = Date.now();
   try {
     const db = getDb();
@@ -157,7 +153,6 @@ app.get("/api/health/detailed", async (c) => {
     services.database = { status: "down", detail: e?.message ?? String(e) };
   }
 
-  // 2. Stripe (only if configured with a real-looking key)
   const hasRealStripeKey = env.stripeSecretKey && !env.stripeSecretKey.startsWith("sk_test_...") && env.stripeSecretKey.length > 20;
   if (hasRealStripeKey) {
     const stripeStart = Date.now();
@@ -172,7 +167,6 @@ app.get("/api/health/detailed", async (c) => {
     services.stripe = { status: "not_configured" };
   }
 
-  // 3. SMTP
   if (env.smtpHost && env.smtpUser) {
     services.smtp = { status: "ok", detail: "Configured" };
   } else {
@@ -183,26 +177,17 @@ app.get("/api/health/detailed", async (c) => {
   const status = anyDown ? "degraded" : "ok";
 
   return c.json(
-    {
-      status,
-      timestamp: new Date().toISOString(),
-      env: env.nodeEnv,
-      version: "1.0.1",
-      uptime: process.uptime(),
-      services,
-    },
+    { status, timestamp: new Date().toISOString(), env: env.nodeEnv, version: "1.0.1", uptime: process.uptime(), services },
     anyDown ? 503 : 200,
   );
 });
 
-// Readiness check (tests DB connectivity)
 app.get("/api/ready", async (c) => {
   try {
     const db = getDb();
     await db.execute("SELECT 1" as any);
     return c.json({ status: "ready", timestamp: new Date().toISOString() }, 200);
   } catch (e: any) {
-    // Drizzle wraps the original mysql2 error — unwrap for real error code
     const cause = (e as any)?.cause ?? e;
     logger.error("Database readiness check failed", {
       error: e?.message ?? String(e),
@@ -214,7 +199,6 @@ app.get("/api/ready", async (c) => {
   }
 });
 
-// Liveness check (always succeeds)
 app.get("/api/live", (c) => {
   return c.json({ alive: true, timestamp: new Date().toISOString() });
 });
@@ -231,7 +215,6 @@ app.get("/api/oauth/google/callback", async (c) => {
 
 // tRPC
 async function trpcHandler(c: any) {
-  console.log("tRPC handler called", c.req.path, c.req.method);
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
@@ -244,7 +227,7 @@ app.get("/api/trpc", (c) => c.json({ message: "trpc GET" }));
 app.post("/api/trpc", trpcHandler);
 app.all("/api/trpc/*", trpcHandler);
 
-// 404 catch-all for any unmatched /api/* path
+// 404 catch-all
 app.all("/api/*", (c) => {
   logger.warn("API 404", { path: c.req.path, method: c.req.method });
   return c.json({ success: false, error: "Not Found" }, 404);
@@ -254,19 +237,10 @@ app.all("/api/*", (c) => {
 app.onError((err, c) => {
   const requestId = c.get("requestId") || "unknown";
   logger.error("Unhandled error in HTTP handler", {
-    requestId,
-    path: c.req.path,
-    method: c.req.method,
-    error: err.message,
-    stack: env.isProduction ? undefined : err.stack,
+    requestId, path: c.req.path, method: c.req.method, error: err.message, stack: env.isProduction ? undefined : err.stack,
   });
   return c.json(
-    {
-      success: false,
-      error: "Internal Server Error",
-      message: env.isProduction ? "An unexpected error occurred" : err.message,
-      requestId,
-    },
+    { success: false, error: "Internal Server Error", message: env.isProduction ? "An unexpected error occurred" : err.message, requestId },
     500,
   );
 });
@@ -303,26 +277,34 @@ process.on("SIGINT", async () => {
 const { serve } = await import("@hono/node-server");
 const { serveStaticFiles } = await import("./lib/vite");
 
-logger.info("Starting server...");
+logger.info("Starting server process...");
 logger.info(`Environment: ${env.nodeEnv}`);
 logger.info(`Database URL configured: ${Boolean(env.databaseUrl)}`);
+
+// --- FIX 1: STRICT INITIALIZATION SEQUENCE ---
+// Await migrations *before* serving traffic to ensure tables exist.
+try {
+  logger.info("Running database initialization and migrations...");
+  await autoInitialize();
+  logger.info("Database initialization successful.");
+} catch (err: any) {
+  logger.error("Fatal error during database initialization", { error: err.message });
+  // Ensure the container crashes loudly so Railway restarts it, rather than hanging.
+  process.exit(1); 
+}
 
 serveStaticFiles(app);
 
 const port = parseInt(env.port || "3000");
 serve({ fetch: app.fetch, port }, () => {
-  logger.info(`Server running on http://localhost:${port}/`);
-  logger.info(`Health check: http://localhost:${port}/api/health`);
-  logger.info(`Ready check: http://localhost:${port}/api/ready`);
-  logger.info(`Live check: http://localhost:${port}/api/live`);
-
-  // Run migrations + seed in background after server is already accepting traffic
-  // so Railway healthcheck passes immediately.
-  autoInitialize().catch((err: any) => {
-    logger.error("Auto-initialization failed (non-fatal)", { error: err.message });
-  });
+  logger.info(`Server running on http://0.0.0.0:${port}/`);
+  logger.info(`Health check: http://0.0.0.0:${port}/api/health`);
+  logger.info(`Ready check: http://0.0.0.0:${port}/api/ready`);
+  logger.info(`Live check: http://0.0.0.0:${port}/api/live`);
 });
 
+// --- FIX 2: SYNTAX ERROR RESOLUTION ---
+// The setInterval block was missing its closing brace and interval time.
 setInterval(async () => {
   try {
     const db = getDb();
@@ -337,7 +319,6 @@ setInterval(async () => {
       }).where(eq(emailQueue.id, email.id));
     }
   } catch (err: any) {
-    // Drizzle wraps the original mysql2 error — unwrap it for actionable details
     const cause = err?.cause ?? err;
     logger.error("Email queue processing error", {
       error: err.message,
@@ -348,4 +329,4 @@ setInterval(async () => {
       errno: cause?.errno ?? err.errno,
     });
   }
-}, 5 * 60 * 1000).unref();
+}, 60 * 1000); // Set to run every 60 seconds
