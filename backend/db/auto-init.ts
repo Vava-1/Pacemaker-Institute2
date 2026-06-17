@@ -29,6 +29,13 @@ function parseMigrationConnectionString(url: string): mysql.ConnectionOptions {
   }
 }
 
+function requiresSsl(host?: string): boolean {
+  if (!host) return false;
+  if (host.endsWith(".railway.internal")) return false;
+  if (host === "localhost" || host === "127.0.0.1") return false;
+  return env.isProduction;
+}
+
 export async function autoInitialize() {
   const migrationsFolder = path.resolve(process.cwd(), "backend/db/migrations");
   const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
@@ -58,7 +65,7 @@ export async function autoInitialize() {
     // rejects the connection and migrations never run.
     connection = await mysql.createConnection({
       ...connParams,
-      ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
+      ssl: requiresSsl(connParams.host) ? { rejectUnauthorized: false } : undefined,
       connectTimeout: 15000,
     });
     logger.info("Connected to database for migrations");
