@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { GraduationCap, Mail, Phone, MapPin } from 'lucide-react'
+import { Mail, Phone, MapPin } from 'lucide-react'
 
 export function Footer() {
   const { t } = useTranslation()
@@ -9,10 +9,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-white">Pacemaker Institute</span>
+            <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-8 w-auto" />
           </div>
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">
             {t('footer.tagline')}

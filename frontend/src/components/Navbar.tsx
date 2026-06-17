@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useTranslation } from 'react-i18next'
 import {
-  Search, Bell, Menu, X, GraduationCap, LogOut, User, Settings,
+  Search, Bell, Menu, X, LogOut, User, Settings,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -47,12 +47,7 @@ export function Navbar() {
       <nav className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-sm">
-              <GraduationCap className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-base font-bold text-slate-900">
-              Pacemaker Institute
-            </span>
+            <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-9 w-auto" />
           </Link>
 
           <div className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">

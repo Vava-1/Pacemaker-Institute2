@@ -37,20 +37,12 @@ export function AdminSidebar({ collapsed, onToggle }: { collapsed: boolean; onTo
         collapsed ? 'justify-center px-2' : 'justify-between px-4',
       )}>
         {!collapsed && (
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
-              <Shield className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <span className="text-sm font-bold text-slate-800">Pacemaker</span>
-              <span className="text-[10px] font-medium text-teal-600 block leading-tight">Admin Panel</span>
-            </div>
+          <div className="flex items-center gap-2.5 px-2">
+            <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-8 w-auto" />
           </div>
         )}
         {collapsed && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
-            <Shield className="h-4 w-4 text-white" />
-          </div>
+          <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-8 w-auto" />
         )}
       </div>
 
