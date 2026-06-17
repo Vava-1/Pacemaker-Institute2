@@ -300,14 +300,6 @@ process.on("SIGINT", async () => {
   }, 5000).unref();
 });
 
-// Auto-initialize database (migrations + seed) before accepting traffic
-// Runs in all environments so Railway deploys always get fresh tables
-try {
-  await autoInitialize();
-} catch (err: any) {
-  logger.error("Auto-initialization failed, starting server anyway", { error: err.message, stack: err.stack });
-}
-
 const { serve } = await import("@hono/node-server");
 const { serveStaticFiles } = await import("./lib/vite");
 
@@ -323,6 +315,12 @@ serve({ fetch: app.fetch, port }, () => {
   logger.info(`Health check: http://localhost:${port}/api/health`);
   logger.info(`Ready check: http://localhost:${port}/api/ready`);
   logger.info(`Live check: http://localhost:${port}/api/live`);
+
+  // Run migrations + seed in background after server is already accepting traffic
+  // so Railway healthcheck passes immediately.
+  autoInitialize().catch((err: any) => {
+    logger.error("Auto-initialization failed (non-fatal)", { error: err.message });
+  });
 });
 
 setInterval(async () => {
