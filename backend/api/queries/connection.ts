@@ -9,89 +9,72 @@ const fullSchema = { ...schema, ...relations };
 
 let pool: mysql.Pool | null = null;
 let instance: any = null;
-let poolCreateAttempted = false;
 
-export function createPool(): mysql.Pool | null {
+/**
+ * Parse a mysql:// URI into explicit connection options.
+ * Using explicit params instead of the `uri` option avoids a known mysql2
+ * issue where SSL options are silently ignored when a connection string is
+ * passed as the `uri` key in the options object.
+ */
+function parseConnectionString(url: string): mysql.ConnectionOptions {
+  try {
+    const parsed = new URL(url);
+    const params: mysql.ConnectionOptions = {
+      host: parsed.hostname,
+      port: parsed.port ? parseInt(parsed.port, 10) : 3306,
+      user: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+      password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+      database: parsed.pathname ? parsed.pathname.slice(1) : undefined,
+    };
+    return params;
+  } catch {
+    // Fallback: let mysql2 parse it as a connection URI (last resort)
+    logger.warn("Could not parse DATABASE_URL as a standard URL — passing raw string to mysql2");
+    return { uri: url } as any;
+  }
+}
+
+export function createPool(): mysql.Pool {
   if (!env.databaseUrl) {
     throw new Error("DATABASE_URL is not configured");
   }
 
-  try {
-    const url = new URL(env.databaseUrl);
-    logger.info("Connecting to database", { host: url.hostname, port: url.port, database: url.pathname.replace(/^\//, "") });
+  const connParams = parseConnectionString(env.databaseUrl);
 
-    const p = mysql.createPool({
-      host: url.hostname,
-      port: Number(url.port) || 3306,
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      database: url.pathname.replace(/^\//, ""),
-      waitForConnections: true,
-      connectionLimit: 20,
-      maxIdle: 10,
-      queueLimit: 0,
-      acquireTimeout: 15000,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
-      connectTimeout: 20000,
-      idleTimeout: 600000,
-      ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
-    } as mysql.PoolOptions);
+  // Log host info for debugging (never log password)
+  logger.info("Creating MySQL connection pool", {
+    host: connParams.host,
+    port: connParams.port,
+    database: connParams.database,
+    ssl: env.isProduction ? "enabled (rejectUnauthorized: false)" : "disabled",
+  });
 
-    p.on("acquire", () => {
-      logger.debug("Connection acquired from pool", {
-        poolSize: p.pool ? (p.pool as any).numFree?._value ?? "?" : "?",
-      });
-    });
-
-    p.on("release", () => {
-      logger.debug("Connection returned to pool");
-    });
-
-    p.on("connection", () => {
-      logger.debug("New connection created");
-    });
-
-    p.on("enqueue", () => {
-      logger.warn("Connection request queued — all connections in use");
-    });
-
-    return p;
-  } catch (err: any) {
-    logger.error("Failed to create database pool", { error: err.message });
-    return null;
-  }
-}
-
-export async function ensurePool(): Promise<mysql.Pool | null> {
-  if (pool) return pool;
-  if (poolCreateAttempted && !env.databaseUrl) return null;
-  poolCreateAttempted = true;
-  pool = createPool();
-  if (pool) {
-    instance = drizzle(pool, { schema: fullSchema, mode: "default" });
-    poolCreateAttempted = false;
-  }
-  return pool;
+  return mysql.createPool({
+    ...connParams,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    connectTimeout: 15000,
+    idleTimeout: 600000,
+    // Apply SSL for production regardless of whether the URL is the Railway
+    // external proxy (thomas.proxy.rlwy.net) or the internal hostname.
+    // The internal Railway hostname (.railway.internal) accepts SSL connections
+    // but does not require them; this setting works for both.
+    ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
+  } as mysql.PoolOptions);
 }
 
 export function getDb() {
   if (!instance) {
     pool = createPool();
-    if (pool) {
-      instance = drizzle(pool, { schema: fullSchema, mode: "default" });
-    }
+    instance = drizzle(pool, { schema: fullSchema, mode: "default" });
   }
   return instance;
 }
 
-export async function getDbAsync(): Promise<any> {
-  if (instance) return instance;
-  await ensurePool();
-  return instance;
-}
-
-export function getPool(): mysql.Pool | null {
+export function getPool(): mysql.Pool {
   if (!pool) {
     pool = createPool();
   }
@@ -99,30 +82,18 @@ export function getPool(): mysql.Pool | null {
 }
 
 export async function checkDatabaseHealth(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
-  const maxRetries = 2;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const start = Date.now();
-      const p = await ensurePool();
-      if (!p) {
-        return { ok: false, error: "DATABASE_URL not configured" };
-      }
-      const connection = await p.getConnection();
-      await connection.execute("SELECT 1");
-      connection.release();
-      return { ok: true, latencyMs: Date.now() - start };
-    } catch (err: any) {
-      if (attempt < maxRetries) {
-        logger.warn(`Database health check attempt ${attempt + 1} failed, retrying...`, {
-          error: err.message,
-        });
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-      return { ok: false, error: err.message };
-    }
+  try {
+    const start = Date.now();
+    const p = getPool();
+    const connection = await p.getConnection();
+    await connection.execute("SELECT 1");
+    connection.release();
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch (err: any) {
+    // Unwrap Drizzle wrapper if present to get the real MySQL error
+    const cause = err?.cause ?? err;
+    return { ok: false, error: cause?.message ?? err?.message ?? String(err) };
   }
-  return { ok: false, error: "Health check failed after retries" };
 }
 
 export async function closeDatabase(): Promise<void> {
@@ -130,6 +101,5 @@ export async function closeDatabase(): Promise<void> {
     await pool.end();
     pool = null;
     instance = null;
-    poolCreateAttempted = false;
   }
 }

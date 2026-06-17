@@ -10,16 +10,26 @@ import { seedDatabase } from "./seed";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
-async function executeMigrationSql(connection: mysql.Connection, sql: string) {
-  const statements = sql.split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
-  for (const stmt of statements) {
-    await connection.execute(stmt);
+/**
+ * Parse a mysql:// URI into explicit connection options — same logic as
+ * connection.ts so both code paths use identical SSL handling.
+ */
+function parseMigrationConnectionString(url: string): mysql.ConnectionOptions {
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.hostname,
+      port: parsed.port ? parseInt(parsed.port, 10) : 3306,
+      user: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+      password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+      database: parsed.pathname ? parsed.pathname.slice(1) : undefined,
+    };
+  } catch {
+    return { uri: url } as any;
   }
 }
 
 export async function autoInitialize() {
-  // Step 1: Run pending migrations using a direct connection
-  // (bypasses drizzle's session to avoid DrizzleQueryError wrapping)
   const migrationsFolder = path.resolve(process.cwd(), "backend/db/migrations");
   const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
 
@@ -35,9 +45,23 @@ export async function autoInitialize() {
 
   let connection: mysql.Connection | null = null;
   try {
-    logger.info("Connecting to database for migrations...");
-    connection = await mysql.createConnection(env.databaseUrl);
-    logger.info("Connected, running migrations...");
+    const connParams = parseMigrationConnectionString(env.databaseUrl);
+    logger.info("Connecting to database for migrations...", {
+      host: connParams.host,
+      port: connParams.port,
+      database: connParams.database,
+    });
+
+    // IMPORTANT: Use explicit params + SSL so this works whether DATABASE_URL
+    // points to Railway's external proxy (thomas.proxy.rlwy.net) or the internal
+    // hostname (pacemaker-db.railway.internal).  Without SSL the external proxy
+    // rejects the connection and migrations never run.
+    connection = await mysql.createConnection({
+      ...connParams,
+      ssl: env.isProduction ? { rejectUnauthorized: false } : undefined,
+      connectTimeout: 15000,
+    });
+    logger.info("Connected to database for migrations");
 
     // Create migrations tracking table if needed
     await connection.execute(
@@ -77,25 +101,24 @@ export async function autoInitialize() {
 
       logger.info(`  Applying ${entry.tag}...`);
 
-      // Execute migration SQL
-      const statements = sql.split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
+      const statements = sql.split("--> statement-breakpoint").map((s: string) => s.trim()).filter(Boolean);
       for (const stmt of statements) {
         await connection.execute(stmt);
       }
 
-      // Record as applied
       await connection.execute(
         `INSERT INTO \`${MIGRATIONS_TABLE}\` (\`hash\`, \`created_at\`) VALUES (?, ?)`,
         [hash, entry.when]
       );
 
       applied++;
+      logger.info(`  Applied ${entry.tag}`);
     }
 
     if (applied > 0) {
-      logger.info(`Applied ${applied} migration(s)`);
+      logger.info(`Applied ${applied} migration(s) successfully`);
     } else {
-      logger.info("All migrations already applied");
+      logger.info("All migrations already applied — database schema is up to date");
     }
   } catch (err: any) {
     logger.error("Migration failed, continuing startup", {
@@ -128,6 +151,8 @@ export async function autoInitialize() {
   } catch (err: any) {
     logger.error("Seeding failed, continuing startup", {
       error: err.message,
+      code: err.code,
+      sqlMessage: err.sqlMessage,
       stack: err.stack,
     });
   }

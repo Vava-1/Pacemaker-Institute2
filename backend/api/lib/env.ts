@@ -1,6 +1,11 @@
 import "dotenv/config";
 import { z } from "zod";
 
+// Accept any non-empty string for URL-like configs that use custom schemes
+// (cloudinary://, mongodb://, redis://, etc.) since z.string().url() only
+// accepts http:// and https://.
+const looseUrlOrEmpty = z.string().min(1).optional().or(z.literal(""));
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.string().regex(/^\d+$/).default("3000"),
@@ -13,21 +18,22 @@ const EnvSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().startsWith("pk_").optional().or(z.literal("")),
   GOOGLE_CLIENT_ID: z.string().min(1).optional().or(z.literal("")),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional().or(z.literal("")),
-  GOOGLE_CALLBACK_URL: z.string().url().optional().or(z.literal("")),
+  GOOGLE_CALLBACK_URL: looseUrlOrEmpty,
   ANTHROPIC_API_KEY: z.string().startsWith("sk-ant-").optional().or(z.literal("")),
   GROK_API_KEY: z.string().optional().default(""),
   GEMINI_API_KEY: z.string().optional().default(""),
   DEEPSEEK_API_KEY: z.string().optional().default(""),
-  CLOUDINARY_URL: z.string().url().optional().or(z.literal("")),
+  // Accept cloudinary:// and similar custom URL schemes
+  CLOUDINARY_URL: looseUrlOrEmpty,
   SMTP_HOST: z.string().optional().or(z.literal("")),
   SMTP_PORT: z.string().regex(/^\d+$/).optional().or(z.literal("")),
   SMTP_USER: z.string().optional().or(z.literal("")),
   SMTP_PASSWORD: z.string().optional().or(z.literal("")),
   SMTP_FROM_NAME: z.string().optional().or(z.literal("Pacemaker Institute")),
   SMTP_FROM_EMAIL: z.string().email().optional().or(z.literal("noreply@pacemakerinstitute.com")),
-  ERROR_WEBHOOK_URL: z.string().url().optional().or(z.literal("")),
+  ERROR_WEBHOOK_URL: looseUrlOrEmpty,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  SENTRY_DSN: z.string().url().optional().or(z.literal("")),
+  SENTRY_DSN: looseUrlOrEmpty,
   RATE_LIMIT_WINDOW_MS: z.string().regex(/^\d+$/).default("60000"),
   RATE_LIMIT_MAX: z.string().regex(/^\d+$/).default("100"),
   OWNER_UNION_ID: z.string().optional().or(z.literal("")),
@@ -39,14 +45,15 @@ export type Env = z.infer<typeof EnvSchema>;
 
 function parseAndValidate(): Env {
   const result = EnvSchema.safeParse(process.env);
+
   if (!result.success) {
     const issues = result.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     const banner = `
-===============================================================
+================================================================
   ENVIRONMENT CONFIGURATION ERROR
-===============================================================
+================================================================
 The following required environment variables are missing or invalid:
 
 ${issues}
@@ -60,28 +67,30 @@ How to fix:
     DATABASE_URL      -> Your MySQL connection string
     JWT_ACCESS_SECRET -> Any random 32+ char string (e.g. openssl rand -hex 32)
     JWT_REFRESH_SECRET-> Another random 32+ char string
-===============================================================
+================================================================
 `;
     console.error(banner);
 
-    if (process.env.NODE_ENV === "production") {
-      process.exit(1);
-    }
+    // IMPORTANT: Even when optional fields fail validation, preserve the
+    // actual DATABASE_URL and JWT secrets from process.env so the server can
+    // still connect to the database.  Using a hardcoded fallback DATABASE_URL
+    // of "" would silently break every database call.
+    const fallback: Env = {
+      NODE_ENV: (process.env.NODE_ENV as any) ?? "development",
+      PORT: process.env.PORT ?? "3000",
+      DATABASE_URL: process.env.DATABASE_URL ?? "",
+      JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? "dev_access_secret_do_not_use_in_prod_xxxxx",
+      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? "dev_refresh_secret_do_not_use_in_prod_xxxxx",
+      FRONTEND_URL: process.env.FRONTEND_URL ?? "http://localhost:5173",
+      LOG_LEVEL: "info",
+      RATE_LIMIT_WINDOW_MS: "60000",
+      RATE_LIMIT_MAX: "100",
+    } as Env;
+
+    return fallback;
   }
 
-  const fallback: Env = {
-    NODE_ENV: "development",
-    PORT: "3000",
-    DATABASE_URL: "",
-    JWT_ACCESS_SECRET: "dev_access_secret_do_not_use_in_prod_xxxxx",
-    JWT_REFRESH_SECRET: "dev_refresh_secret_do_not_use_in_prod_xxxxx",
-    FRONTEND_URL: "http://localhost:5173",
-    LOG_LEVEL: "info",
-    RATE_LIMIT_WINDOW_MS: "60000",
-    RATE_LIMIT_MAX: "100",
-  } as Env;
-
-  return (result.success ? result.data : fallback) as Env;
+  return result.data as Env;
 }
 
 const parsed = parseAndValidate();

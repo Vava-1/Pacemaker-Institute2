@@ -21,7 +21,7 @@ import { autoInitialize } from "../db/auto-init";
 import { createGoogleAuthUrl, handleGoogleCallback } from "./lib/google-auth";
 import { webhookRouter } from "./lib/webhook-router";
 import { uploadRouter } from "./lib/upload-router";
-import { getDb, checkDatabaseHealth } from "./queries/connection";
+import { getDb } from "./queries/connection";
 import { emailQueue } from "@db/schema";
 import { sendEmailWithRetry } from "./lib/mailer";
 
@@ -147,12 +147,14 @@ app.get("/api/health", (c) => {
 app.get("/api/health/detailed", async (c) => {
   const services: Record<string, { status: "ok" | "down" | "not_configured"; detail?: string; latencyMs?: number }> = {};
 
-  // 1. Database (with retry)
-  const dbResult = await checkDatabaseHealth();
-  if (dbResult.ok) {
-    services.database = { status: "ok", latencyMs: dbResult.latencyMs };
-  } else {
-    services.database = { status: "down", detail: dbResult.error };
+  // 1. Database
+  const dbStart = Date.now();
+  try {
+    const db = getDb();
+    await db.execute("SELECT 1" as any);
+    services.database = { status: "ok", latencyMs: Date.now() - dbStart };
+  } catch (e: any) {
+    services.database = { status: "down", detail: e?.message ?? String(e) };
   }
 
   // 2. Stripe (only if configured with a real-looking key)
@@ -193,22 +195,23 @@ app.get("/api/health/detailed", async (c) => {
   );
 });
 
-// Readiness check (tests DB connectivity with retry)
+// Readiness check (tests DB connectivity)
 app.get("/api/ready", async (c) => {
-  const health = await checkDatabaseHealth();
-  if (!health.ok) {
-    logger.error("Database readiness check failed", { error: health.error });
-    return c.json({
-      status: "not ready",
-      detail: health.error,
-      timestamp: new Date().toISOString(),
-    }, 503);
+  try {
+    const db = getDb();
+    await db.execute("SELECT 1" as any);
+    return c.json({ status: "ready", timestamp: new Date().toISOString() }, 200);
+  } catch (e: any) {
+    // Drizzle wraps the original mysql2 error — unwrap for real error code
+    const cause = (e as any)?.cause ?? e;
+    logger.error("Database readiness check failed", {
+      error: e?.message ?? String(e),
+      cause: cause?.message,
+      code: cause?.code,
+      sqlMessage: cause?.sqlMessage,
+    });
+    return c.json({ status: "not ready", detail: e?.message ?? String(e), timestamp: new Date().toISOString() }, 503);
   }
-  return c.json({
-    status: "ready",
-    latencyMs: health.latencyMs,
-    timestamp: new Date().toISOString(),
-  }, 200);
 });
 
 // Liveness check (always succeeds)
@@ -326,36 +329,27 @@ if (env.isProduction) {
 
 setInterval(async () => {
   try {
-    const health = await checkDatabaseHealth();
-    if (!health.ok) {
-      logger.warn("Email queue worker skipped — database unavailable", { error: health.error });
-      return;
-    }
-
     const db = getDb();
     const pending = await db.select().from(emailQueue).where(eq(emailQueue.status, "pending")).limit(10);
 
     for (const email of pending) {
-      try {
-        const result = await sendEmailWithRetry(email.to, email.subject, email.body);
-        await db.update(emailQueue).set({
-          status: result.success ? "sent" : "failed",
-          attempts: email.attempts + 1,
-          sentAt: result.success ? new Date() : null,
-        }).where(eq(emailQueue.id, email.id));
-      } catch (emailErr: any) {
-        logger.error("Email queue: individual email processing failed", {
-          error: emailErr.message,
-          emailId: email.id,
-        });
-      }
+      const result = await sendEmailWithRetry(email.to, email.subject, email.body);
+      await db.update(emailQueue).set({
+        status: result.success ? "sent" : "failed",
+        attempts: email.attempts + 1,
+        sentAt: result.success ? new Date() : null,
+      }).where(eq(emailQueue.id, email.id));
     }
   } catch (err: any) {
+    // Drizzle wraps the original mysql2 error — unwrap it for actionable details
+    const cause = err?.cause ?? err;
     logger.error("Email queue processing error", {
       error: err.message,
-      code: err.code,
-      sqlMessage: err.sqlMessage,
-      sqlState: err.sqlState,
+      cause: cause?.message,
+      code: cause?.code ?? err.code,
+      sqlMessage: cause?.sqlMessage ?? err.sqlMessage,
+      sqlState: cause?.sqlState ?? err.sqlState,
+      errno: cause?.errno ?? err.errno,
     });
   }
 }, 5 * 60 * 1000).unref();
