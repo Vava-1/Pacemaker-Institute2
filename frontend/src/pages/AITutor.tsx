@@ -52,15 +52,6 @@ function truncate(str: string, len: number): string {
   return str.length > len ? str.slice(0, len) + '...' : str
 }
 
-function LogoIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-      <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-    </svg>
-  )
-}
-
 function SearchIcon({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -224,14 +215,8 @@ export default function AITutor() {
         } flex flex-col bg-[#0E1320] border-r border-[rgba(255,255,255,0.07)] transition-all duration-200 overflow-hidden flex-shrink-0`}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[rgba(255,255,255,0.07)]">
-          <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] flex items-center justify-center text-white shadow-[0_0_16px_rgba(99,102,241,0.35)]">
-            <LogoIcon size={20} />
-          </div>
-          <div>
-            <div className="text-[15px] font-extrabold text-[#F1F5F9] tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', sans-serif" }}>Pacemaker</div>
-            <div className="text-[10px] text-[#8B95A8] uppercase tracking-[0.5px] mt-px">Institute</div>
-          </div>
+        <div className="flex items-center px-5 py-4 border-b border-[rgba(255,255,255,0.07)]">
+          <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-9 w-auto" />
         </div>
 
         {/* New Chat Button */}
