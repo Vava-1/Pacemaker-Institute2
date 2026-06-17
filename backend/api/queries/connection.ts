@@ -76,7 +76,11 @@ export function getPool(): mysql.Pool {
   return pool;
 }
 
-export async function checkDatabaseHealth(): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+export async function checkDatabaseHealth(): Promise<{
+  ok: boolean;
+  latencyMs?: number;
+  error?: string;
+}> {
   try {
     const start = Date.now();
     const p = getPool();
