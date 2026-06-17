@@ -308,24 +308,22 @@ try {
   logger.error("Auto-initialization failed, starting server anyway", { error: err.message, stack: err.stack });
 }
 
-if (env.isProduction) {
-  const { serve } = await import("@hono/node-server");
-  const { serveStaticFiles } = await import("./lib/vite");
+const { serve } = await import("@hono/node-server");
+const { serveStaticFiles } = await import("./lib/vite");
 
-  logger.info("Starting server...");
-  logger.info(`Environment: ${env.nodeEnv}`);
-  logger.info(`Database URL configured: ${Boolean(env.databaseUrl)}`);
+logger.info("Starting server...");
+logger.info(`Environment: ${env.nodeEnv}`);
+logger.info(`Database URL configured: ${Boolean(env.databaseUrl)}`);
 
-  serveStaticFiles(app);
+serveStaticFiles(app);
 
-  const port = parseInt(env.port || "3000");
-  serve({ fetch: app.fetch, port }, () => {
-    logger.info(`Server running on http://localhost:${port}/`);
-    logger.info(`Health check: http://localhost:${port}/api/health`);
-    logger.info(`Ready check: http://localhost:${port}/api/ready`);
-    logger.info(`Live check: http://localhost:${port}/api/live`);
-  });
-}
+const port = parseInt(env.port || "3000");
+serve({ fetch: app.fetch, port }, () => {
+  logger.info(`Server running on http://localhost:${port}/`);
+  logger.info(`Health check: http://localhost:${port}/api/health`);
+  logger.info(`Ready check: http://localhost:${port}/api/ready`);
+  logger.info(`Live check: http://localhost:${port}/api/live`);
+});
 
 setInterval(async () => {
   try {
