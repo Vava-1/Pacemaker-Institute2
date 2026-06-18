@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router'
 import { AdminApp } from './admin/App'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import CoursesPage from './pages/CoursesPage'
 import CourseDetail from './pages/CourseDetail'
@@ -23,6 +24,7 @@ export default function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/courses" element={<CoursesPage />} />
         <Route path="/courses/:id" element={<CourseDetail />} />
