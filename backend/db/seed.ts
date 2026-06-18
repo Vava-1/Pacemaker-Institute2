@@ -8,7 +8,7 @@ import {
 } from "./schema";
 
 const SEED_CONFIG = {
-  admin: { email: "admin@pacemaker.institute", password: "Admin123!" },
+  admin: { email: "mnasida@gmail.com", password: "Tonde@123" },
   instructor: { email: "instructor@pacemaker.institute", password: "Instructor123!" },
   student: { email: "student@pacemaker.institute", password: "Student123!" },
 };
