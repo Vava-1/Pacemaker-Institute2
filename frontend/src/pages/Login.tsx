@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { Loader2, GraduationCap, ServerCrash } from 'lucide-react'
+import { Loader2, GraduationCap, ServerCrash, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc, setAuthToken } from '@/providers/trpc'
 import { useApiHealth } from '@/hooks/useApiHealth'
@@ -25,11 +25,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useState } from 'react'  // ← ADD THIS
 
 export default function Login() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const health = useApiHealth()
+  const [loginError, setLoginError] = useState<string | null>(null)  // ← ADD THIS
 
   const loginSchema = z.object({
     email: z.string().email(t('auth.validationEmail')),
@@ -49,6 +51,7 @@ export default function Login() {
   const utils = trpc.useUtils()
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: (data) => {
+      setLoginError(null)  // ← CLEAR ERROR
       setAuthToken(data.accessToken)
       if (data.refreshToken) {
         localStorage.setItem('refresh_token', data.refreshToken)
@@ -60,11 +63,14 @@ export default function Login() {
     },
     onError: (error) => {
       console.error("[Auth] Login failed:", { message: error.message, code: error.data?.code })
-      toast.error(t('auth.failedToLogin'))
+      const errorMsg = error.message || t('auth.failedToLogin')
+      setLoginError(errorMsg)  // ← SHOW ERROR IN UI
+      toast.error(errorMsg)    // ← SHOW ACTUAL ERROR MESSAGE
     },
   })
 
   function onSubmit(data: LoginFormValues) {
+    setLoginError(null)  // ← CLEAR PREVIOUS ERROR
     loginMutation.mutate(data)
   }
 
@@ -79,10 +85,19 @@ export default function Login() {
           <p className="text-slate-500 text-sm mt-1">{t('auth.signInToAccount')}</p>
         </div>
 
+        {/* API DOWN WARNING */}
         {health.status === "down" && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
             <ServerCrash className="h-4 w-4 mt-0.5 shrink-0" />
             <span>{health.detail}</span>
+          </div>
+        )}
+
+        {/* LOGIN ERROR — ALWAYS VISIBLE */}
+        {loginError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{loginError}</span>
           </div>
         )}
 
