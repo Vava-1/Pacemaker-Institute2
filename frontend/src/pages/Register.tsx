@@ -1,336 +1,218 @@
-import { useState } from 'react'
-import { Link } from 'react-router'
-import { useTranslation } from 'react-i18next'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Loader2, KeyRound, ArrowLeft, RefreshCw, ServerCrash } from 'lucide-react'
-import { toast } from 'sonner'
-import { trpc } from '@/providers/trpc'
-import { useApiHealth } from '@/hooks/useApiHealth'
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { trpc } from "../lib/trpc";
+import { useAuthStore } from "../store/auth";
+import { toast } from "sonner";
+import { GraduationCap, Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from '@/components/ui/input-otp'
+export default function Login() {
+  const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [noAccountError, setNoAccountError] = useState(false);
 
-export default function Register() {
-  const { t } = useTranslation()
-  const health = useApiHealth()
-  const [step, setStep] = useState<'register' | 'otp'>('register')
-  const [registeredEmail, setRegisteredEmail] = useState('')
-  const [otp, setOtp] = useState('')
-  const [resendCooldown, setResendCooldown] = useState(0)
-  
-  const registerSchema = z.object({
-    name: z.string().min(2, t('register.validationNameMin')),
-    email: z.string().email(t('register.validationEmail')),
-    password: z.string()
-      .min(8, t('register.validationPasswordMin'))
-      .regex(/[A-Z]/, t('register.validationPasswordUpper'))
-      .regex(/[a-z]/, t('register.validationPasswordLower'))
-      .regex(/[0-9]/, t('register.validationPasswordNumber'))
-      .regex(/[^A-Za-z0-9]/, t('register.validationPasswordSpecial')),
-    confirmPassword: z.string()
-  }).refine((data) => data.password === data.confirmPassword, {
-    message: t('register.validationPasswordsMatch'),
-    path: ["confirmPassword"],
-  })
+  const loginMutation = useMutation({
+    mutationFn: (data: { email: string; password: string }) =>
+      trpc.auth.login.mutate(data),
+    onSuccess: (data) => {
+      setAuth(data.user, data.accessToken, data.refreshToken);
+      toast.success(`Welcome back, ${data.user.name || "Learner"}!`);
 
-  type RegisterFormValues = z.infer<typeof registerSchema>
-
-  const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      name: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
+      // Redirect based on role
+      if (data.user.role === "instructor") {
+        navigate("/instructor/dashboard");
+      } else if (data.user.role === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
     },
-  })
+    onError: (error: any) => {
+      const message = error.message || "";
 
-  const registerMutation = trpc.auth.register.useMutation({
-    onSuccess: () => {
-      setRegisteredEmail(form.getValues('email'))
-      setStep('otp')
-      toast.success(t('register.registrationSuccess'))
-      startResendCooldown()
+      // Check for "no account" message from backend
+      if (
+        message.includes("don't have an account") ||
+        message.includes("No account found") ||
+        error.code === "NOT_FOUND"
+      ) {
+        setNoAccountError(true);
+        toast.error("You don't have an account. Create your account to continue.");
+      } else if (message.includes("verify your email")) {
+        setNoAccountError(false);
+        toast.error(message);
+        // Optionally redirect to resend verification
+        setTimeout(() => {
+          navigate("/resend-verification", { state: { email } });
+        }, 2000);
+      } else {
+        setNoAccountError(false);
+        toast.error(message || "Failed to sign in. Please try again.");
+      }
     },
-    onError: (error) => {
-      console.error("[Auth] Register failed:", { message: error.message, code: error.data?.code })
-      toast.error(t('register.failedToRegister'))
-    },
-  })
+  });
 
-  const verifyOtpMutation = trpc.auth.verifyOtp.useMutation({
-    onSuccess: () => {
-      toast.success(t('register.emailVerifiedSuccess'))
-    },
-    onError: (error) => {
-      toast.error(error.message || t('register.failedToVerifyOtp'))
-    },
-  })
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setNoAccountError(false);
 
-  const resendOtpMutation = trpc.auth.resendOtp.useMutation({
-    onSuccess: () => {
-      toast.success(t('register.newOtpSent'))
-      startResendCooldown()
-    },
-    onError: (error) => {
-      toast.error(error.message || t('register.failedToResendOtp'))
-    },
-  })
+    if (!email.trim()) {
+      toast.error("Please enter your email address");
+      return;
+    }
 
-  function startResendCooldown() {
-    setResendCooldown(60)
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
+    if (!password) {
+      toast.error("Please enter your password");
+      return;
+    }
 
-  function onSubmit(data: RegisterFormValues) {
-    registerMutation.mutate({
-      name: data.name,
-      email: data.email,
-      password: data.password,
-    })
-  }
-
-  function handleOtpSubmit() {
-    if (otp.length !== 6) return
-    verifyOtpMutation.mutate({ email: registeredEmail, code: otp })
-  }
-
-  function handleResendOtp() {
-    if (resendCooldown > 0) return
-    resendOtpMutation.mutate({ email: registeredEmail })
-  }
-
-  if (step === 'otp') {
-    const isVerified = verifyOtpMutation.isSuccess
-    
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <KeyRound className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              {isVerified ? t('register.emailVerified') : t('register.verifyEmail')}
-            </CardTitle>
-            <CardDescription className="mt-2 text-base">
-              {isVerified ? (
-                t('register.verifiedSuccess')
-              ) : (
-                <>
-                  {t('register.sentCode')} <strong>{registeredEmail}</strong>
-                </>
-              )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-6">
-              {!isVerified && (
-              <>
-                <InputOTP
-                  maxLength={6}
-                  value={otp}
-                  onChange={setOtp}
-                  disabled={verifyOtpMutation.isPending}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-                {verifyOtpMutation.isError && (
-                  <p className="text-sm text-red-500">{verifyOtpMutation.error.message}</p>
-                )}
-                <Button
-                  onClick={handleOtpSubmit}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={otp.length !== 6 || verifyOtpMutation.isPending}
-                >
-                  {verifyOtpMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {t('register.verifyEmailBtn')}
-                </Button>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{t('register.didntReceiveCode')}</span>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 h-auto"
-                    onClick={handleResendOtp}
-                    disabled={resendCooldown > 0 || resendOtpMutation.isPending}
-                  >
-                    <RefreshCw className={`mr-1 h-3 w-3 ${resendOtpMutation.isPending ? 'animate-spin' : ''}`} />
-                    {resendCooldown > 0 ? `${t('register.resendIn')} ${resendCooldown}s` : t('register.resend')}
-                  </Button>
-                </div>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="flex flex-col gap-4 mt-4">
-            {isVerified ? (
-              <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                <Link to="/login">{t('register.goToLogin')}</Link>
-              </Button>
-            ) : (
-              <Button variant="outline" className="w-full" onClick={() => { setStep('register'); setOtp('') }}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {t('register.backToRegistration')}
-              </Button>
-            )}
-          </CardFooter>
-        </Card>
-      </div>
-    )
-  }
+    loginMutation.mutate({
+      email: email.trim(),
+      password,
+    });
+  };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-      <div className="w-full max-w-md mb-4">
-        {health.status === "down" && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-start gap-2 mb-4">
-            <ServerCrash className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>{health.detail}</span>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <GraduationCap className="w-8 h-8 text-white" />
           </div>
-        )}
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">{t('register.createAccount')}</CardTitle>
-          <CardDescription>
-            {t('register.enterDetails')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('register.nameLabel')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('register.namePlaceholder')}
-                        {...field}
-                        disabled={registerMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('register.emailLabel')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder={t('register.emailPlaceholder')}
-                        {...field}
-                        disabled={registerMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('register.passwordLabel')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder={t('register.passwordPlaceholder')}
-                        {...field}
-                        disabled={registerMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('register.confirmPasswordLabel')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder={t('register.confirmPasswordPlaceholder')}
-                        {...field}
-                        disabled={registerMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={registerMutation.isPending}
-              >
-                {registerMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {t('register.registerBtn')}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="flex justify-center text-sm">
-          <span className="text-muted-foreground mr-1">
-            {t('register.alreadyHaveAccount')}
-          </span>
-          <Link to="/login" className="text-primary hover:underline">
-            {t('register.signIn')}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Pacemaker Institute
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Sign in to your account
+          </p>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8">
+          {/* No Account Error Banner */}
+          {noAccountError && (
+            <div className="mb-5 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                  You don't have an account
+                </p>
+                <p className="text-sm text-orange-700 dark:text-orange-400 mt-0.5">
+                  Create your account to continue learning with us.
+                </p>
+                <Link
+                  to="/register"
+                  className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300"
+                >
+                  Create Account
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setNoAccountError(false);
+                  }}
+                  placeholder="you@example.com"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loginMutation.isPending}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              {loginMutation.isPending ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                New here?
+              </span>
+            </div>
+          </div>
+
+          {/* Create Account Link */}
+          <Link
+            to="/register"
+            className="w-full block text-center py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Create Account
           </Link>
-        </CardFooter>
-      </Card>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+          Protected by enterprise-grade security
+        </p>
       </div>
     </div>
-  )
+  );
 }
