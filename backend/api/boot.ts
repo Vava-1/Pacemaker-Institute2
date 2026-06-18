@@ -126,8 +126,22 @@ app.use("*", async (c, next) => {
   }
 });
 
-// Mount webhook router BEFORE bodyLimit so we get raw body text for Stripe
+// Mount webhook router AND tRPC BEFORE bodyLimit so raw body is preserved
 app.route("/api/webhooks", webhookRouter);
+
+// tRPC — must be before bodyLimit to avoid consuming the request body stream
+async function trpcHandler(c: any) {
+  return fetchRequestHandler({
+    endpoint: "/api/trpc",
+    req: c.req.raw,
+    router: appRouter,
+    createContext: (opts) => createContext({ ...opts, req: c.req.raw }),
+  });
+}
+
+app.get("/api/trpc", (c) => c.json({ message: "trpc GET" }));
+app.post("/api/trpc", trpcHandler);
+app.all("/api/trpc/*", trpcHandler);
 
 // Body Limit to prevent large payloads
 app.use("/api/upload", bodyLimit({ maxSize: 100 * 1024 * 1024 }));
@@ -212,20 +226,6 @@ app.get("/api/oauth/google", (c) => {
 app.get("/api/oauth/google/callback", async (c) => {
   return handleGoogleCallback(c);
 });
-
-// tRPC
-async function trpcHandler(c: any) {
-  return fetchRequestHandler({
-    endpoint: "/api/trpc",
-    req: c.req.raw,
-    router: appRouter,
-    createContext: (opts) => createContext({ ...opts, req: c.req.raw }),
-  });
-}
-
-app.get("/api/trpc", (c) => c.json({ message: "trpc GET" }));
-app.post("/api/trpc", trpcHandler);
-app.all("/api/trpc/*", trpcHandler);
 
 // 404 catch-all
 app.all("/api/*", (c) => {
