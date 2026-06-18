@@ -1,111 +1,90 @@
-import { useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router'
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { trpc } from '@/providers/trpc'
-
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { trpc } from "../lib/trpc";
+import { toast } from "sonner";
+import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 export default function VerifyEmail() {
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
-  
-  const verifyEmailMutation = trpc.auth.verifyEmail.useMutation()
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get("token");
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+
+  const verifyMutation = useMutation({
+    mutationFn: (t: string) => trpc.auth.verifyEmail.mutate({ token: t }),
+    onSuccess: (data) => {
+      setStatus("success");
+      toast.success(data.message);
+      // Auto-redirect to login after 3 seconds
+      setTimeout(() => navigate("/login"), 3000);
+    },
+    onError: (error: any) => {
+      setStatus("error");
+      toast.error(error.message || "Failed to verify email.");
+    },
+  });
 
   useEffect(() => {
     if (token) {
-      verifyEmailMutation.mutate({ token })
+      verifyMutation.mutate(token);
+    } else {
+      setStatus("error");
+      toast.error("No verification token provided.");
     }
-  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!token) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Invalid Link</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              The verification link is missing or invalid.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex justify-center mt-4">
-            <Button asChild>
-              <Link to="/login">Go to Login</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    )
-  }
-
-  if (verifyEmailMutation.isPending || verifyEmailMutation.isIdle) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Verifying Email</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              Please wait while we verify your email address...
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    )
-  }
-
-  if (verifyEmailMutation.isError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Verification Failed</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              {verifyEmailMutation.error.message || 'The verification link may be expired or invalid.'}
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex justify-center mt-4">
-            <Button asChild>
-              <Link to="/login">Go to Login</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    )
-  }
+  }, [token]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-      <Card className="w-full max-w-md text-center py-8">
-        <CardHeader>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
-            <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-500" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Email Verified</CardTitle>
-          <CardDescription className="mt-2 text-base">
-            Your email has been successfully verified. You can now log in to your account.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter className="flex flex-col gap-4 mt-4">
-          <Button asChild className="w-full">
-            <Link to="/login">Go to Login</Link>
-          </Button>
-        </CardFooter>
-      </Card>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+        {status === "loading" && (
+          <>
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Verifying your email...
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              Please wait while we verify your email address.
+            </p>
+          </>
+        )}
+
+        {status === "success" && (
+          <>
+            <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Email Verified!
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Your email has been verified successfully. You can now sign in to your account.
+            </p>
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Go to Sign In
+            </button>
+          </>
+        )}
+
+        {status === "error" && (
+          <>
+            <XCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Verification Failed
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              The verification link is invalid or has expired.
+            </p>
+            <button
+              onClick={() => navigate("/resend-verification")}
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Resend Verification Email
+            </button>
+          </>
+        )}
+      </div>
     </div>
-  )
+  );
 }
