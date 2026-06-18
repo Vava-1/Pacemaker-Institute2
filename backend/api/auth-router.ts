@@ -20,15 +20,7 @@ import {
 import {
   sendWelcomeEmail,
   sendPasswordResetEmail,
-  sendOtpEmail,
 } from "./lib/mailer";
-
-function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-const otpAttempts = new Map<string, number>();
-const resendAttempts = new Map<string, number>();
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
@@ -65,7 +57,7 @@ export const authRouter = createRouter({
     .input(RegisterSchema)
     .mutation(async ({ input }) => {
       const db = getDb();
-      
+
       // Validate password complexity
       const passwordCheck = validatePassword(input.password);
       if (!passwordCheck.valid) {
@@ -74,51 +66,37 @@ export const authRouter = createRouter({
           message: passwordCheck.errors.join(". "),
         });
       }
-      
+
       // Check existing email
       const existingUser = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
       if (existingUser.length > 0) {
         throw new TRPCError({ code: "CONFLICT", message: "An account with this email already exists" });
       }
-      
+
       try {
         const passwordHash = await hashPassword(input.password);
-        const verificationToken = crypto.randomUUID();
-        
+
         const [result] = await db.insert(users).values({
           name: input.name,
           email: input.email,
           passwordHash,
           role: input.role,
-          emailVerified: false,
-          emailVerifyToken: verificationToken,
+          emailVerified: true,  // Auto-verified — no OTP needed
         });
-        
+
         const userId = Number(result.insertId);
-        
-        // Generate and store OTP
-        const otp = generateOtp();
-        const hashedOtp = await bcrypt.hash(otp, 4);
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-        
-        await db.update(users).set({ otpCode: hashedOtp, otpExpiresAt }).where(eq(users.id, userId));
-        
-        // Send OTP email
-        const otpSent = await sendOtpEmail(input.email, input.name, otp);
-        if (!otpSent.success && !env.isProduction) {
-          logger.info(`[DEV] OTP for ${input.email}: ${otp}`);
-        }
-        
+
+        // Send welcome email (fire and forget)
         sendWelcomeEmail(input.email, input.name).catch((err) =>
           logger.error("Failed to send welcome email", { error: err, email: input.email })
         );
-        
+
         logger.info("User registered", { userId, email: input.email, role: input.role });
-        
+
         return { 
           success: true, 
           userId, 
-          message: "Registration successful. Please check your email for the OTP code to verify your account.",
+          message: "Registration successful. You can now log in.",
         };
       } catch (err: any) {
         logger.error("Registration failed", { error: err.message, email: input.email });
@@ -130,36 +108,34 @@ export const authRouter = createRouter({
     .input(LoginSchema)
     .mutation(async ({ input }) => {
       const db = getDb();
-      
+
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
       const user = userRows[0];
-      
+
       if (!user || !user.passwordHash) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
-      
+
       if (user.isSuspended) {
         logger.warn("Suspended user login attempt", { userId: user.id });
         throw new TRPCError({ code: "FORBIDDEN", message: "This account has been suspended. Please contact support." });
       }
-      
-      if (!user.emailVerified) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Please verify your email before logging in. Check your inbox for the verification code." });
-      }
+
+      // REMOVED: Email verification check — users can log in immediately
 
       const isValid = await verifyPassword(input.password, user.passwordHash);
       if (!isValid) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
-      
+
       const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
-      
+
       await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, user.id));
-      
+
       logger.info("User logged in", { userId: user.id });
-      
+
       return {
         user: {
           id: user.id,
@@ -180,25 +156,25 @@ export const authRouter = createRouter({
       if (!payload) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired refresh token" });
       }
-      
+
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.id, Number(payload.sub))).limit(1);
       const user = userRows[0];
-      
+
       if (!user) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "User not found" });
       }
-      
+
       if (user.isSuspended) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
       }
-      
+
       const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
-      
+
       logger.info("Tokens refreshed", { userId: user.id });
-      
+
       return {
         user: {
           id: user.id,
@@ -217,23 +193,22 @@ export const authRouter = createRouter({
     .mutation(async ({ input }) => {
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      
+
       if (userRows.length > 0) {
         const user = userRows[0];
         const resetToken = await createPasswordResetToken(user.id, user.email);
-        
+
         await db.insert(passwordResets).values({
           userId: user.id,
           token: resetToken,
           expiresAt: new Date(Date.now() + 3600000),
         });
-        
+
         sendPasswordResetEmail(user.email, user.name ?? 'User', resetToken).catch((err) =>
           logger.error("Failed to send password reset email", { error: err })
         );
       }
-      
-      // Always return same message to prevent email enumeration
+
       return { message: "If an account with that email exists, a password reset link has been sent." };
     }),
 
@@ -247,23 +222,23 @@ export const authRouter = createRouter({
           message: passwordCheck.errors.join(". "),
         });
       }
-      
+
       const tokenData = await verifyPasswordResetToken(input.token);
       if (!tokenData) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired reset token" });
       }
-      
+
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.id, tokenData.userId)).limit(1);
       if (userRows.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
-      
+
       const passwordHash = await hashPassword(input.password);
       await db.update(users).set({ passwordHash }).where(eq(users.id, tokenData.userId));
-      
+
       logger.info("Password reset completed", { userId: tokenData.userId });
-      
+
       return { message: "Password has been reset successfully. You can now log in with your new password." };
     }),
 
@@ -273,16 +248,16 @@ export const authRouter = createRouter({
       const db = getDb();
       const userRows = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
       const user = userRows[0];
-      
+
       if (!user || !user.passwordHash) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
       }
-      
+
       const isValid = await verifyPassword(input.currentPassword, user.passwordHash);
       if (!isValid) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Current password is incorrect" });
       }
-      
+
       const passwordCheck = validatePassword(input.newPassword);
       if (!passwordCheck.valid) {
         throw new TRPCError({
@@ -290,140 +265,24 @@ export const authRouter = createRouter({
           message: passwordCheck.errors.join(". "),
         });
       }
-      
+
       const newHash = await hashPassword(input.newPassword);
       await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, ctx.user.id));
-      
+
       logger.info("Password changed", { userId: ctx.user.id });
-      
+
       return { message: "Password changed successfully" };
     }),
 
-  verifyEmail: publicProcedure
-    .input(z.object({ token: z.string() }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
-      const userRows = await db.select().from(users).where(eq(users.emailVerifyToken, input.token)).limit(1);
-      
-      if (userRows.length === 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid or expired verification token" });
-      }
-      
-      await db.update(users).set({
-        emailVerified: true,
-        emailVerifyToken: null,
-      }).where(eq(users.id, userRows[0].id));
-      
-      logger.info("Email verified", { userId: userRows[0].id });
-      
-      return { message: "Email verified successfully" };
-    }),
-
-  verifyOtp: publicProcedure
-    .input(z.object({ email: z.string().email(), code: z.string().length(6) }))
-    .mutation(async ({ input }) => {
-      const key = `otp:${input.email}`;
-      const attempts = otpAttempts.get(key) || 0;
-
-      if (attempts >= 5) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: "Too many attempts. Request a new OTP.",
-        });
-      }
-
-      otpAttempts.set(key, attempts + 1);
-
-      const db = getDb();
-      const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-
-      if (userRows.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-
-      const user = userRows[0];
-
-      if (user.emailVerified) {
-        return { message: "Email already verified" };
-      }
-
-      if (!user.otpCode || !user.otpExpiresAt) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "No OTP code found. Please request a new one." });
-      }
-
-      if (new Date() > new Date(user.otpExpiresAt)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "OTP code has expired. Please request a new one." });
-      }
-
-      const isValid = await bcrypt.compare(input.code, user.otpCode);
-      if (!isValid) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid OTP code" });
-      }
-
-      otpAttempts.delete(key);
-
-      await db.update(users).set({
-        emailVerified: true,
-        emailVerifyToken: null,
-        otpCode: null,
-        otpExpiresAt: null,
-      }).where(eq(users.id, user.id));
-
-      logger.info("Email verified via OTP", { userId: user.id });
-
-      return { message: "Email verified successfully" };
-    }),
-
-  resendOtp: publicProcedure
-    .input(z.object({ email: z.string().email() }))
-    .mutation(async ({ input }) => {
-      const resendKey = `resend:${input.email}`;
-      const resendCount = resendAttempts.get(resendKey) || 0;
-      if (resendCount >= 3) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: "Maximum resend attempts reached. Try again in 1 hour.",
-        });
-      }
-      resendAttempts.set(resendKey, resendCount + 1);
-      setTimeout(() => resendAttempts.delete(resendKey), 60 * 60 * 1000);
-
-      const db = getDb();
-      const userRows = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
-      
-      if (userRows.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-      
-      const user = userRows[0];
-      
-      if (user.emailVerified) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Email already verified" });
-      }
-      
-      const otp = generateOtp();
-      const hashedOtp = await bcrypt.hash(otp, 4);
-      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      
-      await db.update(users).set({ otpCode: hashedOtp, otpExpiresAt }).where(eq(users.id, user.id));
-      
-      const otpSent = await sendOtpEmail(user.email, user.name ?? 'User', otp);
-      if (!otpSent.success && !env.isProduction) {
-        logger.info(`[DEV] Resent OTP for ${user.email}: ${otp}`);
-      }
-      
-      logger.info("OTP resent", { userId: user.id });
-      
-      return { 
-        message: "OTP sent successfully",
-      };
-    }),
+  // REMOVED: verifyEmail — no longer needed
+  // REMOVED: verifyOtp — no longer needed
+  // REMOVED: resendOtp — no longer needed
 
   me: publicProcedure.query(async ({ ctx }) => {
     if (!ctx.user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Not authenticated" });
     }
-    
+
     const db = getDb();
     const userRows = await db.select({
       id: users.id,
@@ -451,11 +310,11 @@ export const authRouter = createRouter({
       updatedAt: users.updatedAt,
       lastSignInAt: users.lastSignInAt,
     }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
-    
+
     if (userRows.length === 0) {
       throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
     }
-    
+
     return userRows[0];
   }),
 });
