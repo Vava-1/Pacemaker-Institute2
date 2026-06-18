@@ -8,6 +8,8 @@ import CourseDetail from './pages/CourseDetail'
 import ExercisesPage from './pages/ExercisesPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import Profile from './pages/Profile'
+import Blog from './pages/Blog'
+import BlogPost from './pages/BlogPost'
 import NotFound from './pages/NotFound'
 
 import { AppLayout } from './layouts/AppLayout'
@@ -24,6 +26,8 @@ export default function App() {
         <Route path="/exercises" element={<ExercisesPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/blog" element={<Blog />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
         <Route path="*" element={<NotFound />} />
       </Route>
       <Route path="/admin/*" element={<AdminApp />} />
