@@ -14,13 +14,15 @@ import {
 } from "drizzle-orm/mysql-core";
 
 // ===== USERS =====
+// Roles: student = normal learner, instructor = course creator, admin = platform admin
 export const users = mysqlTable("users", {
   id: bigint("id", { mode: "number", unsigned: true }).primaryKey().autoincrement(),
   email: varchar("email", { length: 320 }).notNull(),
   passwordHash: varchar("password_hash", { length: 255 }),
   name: varchar("name", { length: 255 }),
   avatar: text("avatar"),
-  role: mysqlEnum("role", ["user", "instructor", "admin"]).default("user").notNull(),
+  // Role: student (default) | instructor | admin
+  role: mysqlEnum("role", ["student", "instructor", "admin"]).default("student").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
   otpCode: text("otp_code"),
@@ -596,4 +598,3 @@ export const adminActivityLog = mysqlTable("admin_activity_log", {
   details: json("details").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
