@@ -1,184 +1,155 @@
-import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
-import { toast } from 'sonner'
-import { trpc } from '@/providers/trpc'
-
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-
-const resetPasswordSchema = z.object({
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string()
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-})
-
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { trpc } from "../lib/trpc";
+import { toast } from "sonner";
+import { Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
-  const [isSuccess, setIsSuccess] = useState(false)
-  
-  const form = useForm<ResetPasswordFormValues>({
-    resolver: zodResolver(resetPasswordSchema),
-    defaultValues: {
-      password: '',
-      confirmPassword: '',
-    },
-  })
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get("token");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  const resetPasswordMutation = trpc.auth.resetPassword.useMutation({
-    onSuccess: () => {
-      setIsSuccess(true)
-      toast.success('Password has been reset successfully')
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to reset password')
-    },
-  })
-
-  function onSubmit(data: ResetPasswordFormValues) {
+  useEffect(() => {
     if (!token) {
-      toast.error('Invalid or missing reset token')
-      return
+      toast.error("Invalid or missing reset token.");
+      navigate("/forgot-password");
+    }
+  }, [token]);
+
+  const resetMutation = useMutation({
+    mutationFn: (data: { token: string; password: string }) =>
+      trpc.auth.resetPassword.mutate(data),
+    onSuccess: (data) => {
+      setSuccess(true);
+      toast.success(data.message);
+      setTimeout(() => navigate("/login"), 3000);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to reset password.");
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
     }
 
-    resetPasswordMutation.mutate({
-      token,
-      password: data.password,
-    })
-  }
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
 
-  if (!token) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Invalid Link</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              The password reset link is missing or invalid. Please request a new link.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex justify-center mt-4">
-            <Button asChild>
-              <Link to="/forgot-password">Request New Link</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    )
-  }
+    resetMutation.mutate({ token, password });
+  };
 
-  if (isSuccess) {
+  if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
-              <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-500" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Password Reset</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              Your password has been successfully reset. You can now log in with your new password.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex flex-col gap-4 mt-4">
-            <Button asChild className="w-full">
-              <Link to="/login">Go to Login</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+        <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+          <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            Password Reset!
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Your password has been reset successfully. Redirecting to sign in...
+          </p>
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            Go to Sign In
+          </button>
+        </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-          <CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-6">
+          <Lock className="w-10 h-10 text-blue-600 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Reset Password
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Enter your new password below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        {...field}
-                        disabled={resetPasswordMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              New Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Min 8 characters"
+                className="w-full px-4 pr-10 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                required
               />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm New Password</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        {...field}
-                        disabled={resetPasswordMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={resetPasswordMutation.isPending}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
               >
-                {resetPasswordMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Confirm Password
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat password"
+                className="w-full px-4 pr-10 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={resetMutation.isPending}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            {resetMutation.isPending ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
                 Reset Password
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+      </div>
     </div>
-  )
+  );
 }
