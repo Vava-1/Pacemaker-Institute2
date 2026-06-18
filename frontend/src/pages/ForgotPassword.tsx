@@ -1,135 +1,108 @@
-import { useState } from 'react'
-import { Link } from 'react-router'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Loader2, MailCheck, ArrowLeft } from 'lucide-react'
-import { toast } from 'sonner'
-import { trpc } from '@/providers/trpc'
-
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-})
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { trpc } from "../lib/trpc";
+import { toast } from "sonner";
+import { Mail, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 
 export default function ForgotPassword() {
-  const [isSuccess, setIsSuccess] = useState(false)
-  
-  const form = useForm<ForgotPasswordFormValues>({
-    resolver: zodResolver(forgotPasswordSchema),
-    defaultValues: {
-      email: '',
-    },
-  })
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
 
-  const forgotPasswordMutation = trpc.auth.forgotPassword.useMutation({
-    onSuccess: () => {
-      setIsSuccess(true)
-      toast.success('Password reset link sent')
+  const forgotMutation = useMutation({
+    mutationFn: (e: string) => trpc.auth.forgotPassword.mutate({ email: e }),
+    onSuccess: (data) => {
+      setSent(true);
+      toast.success(data.message);
     },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to request password reset')
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to send reset email.");
     },
-  })
+  });
 
-  function onSubmit(data: ForgotPasswordFormValues) {
-    forgotPasswordMutation.mutate(data)
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    forgotMutation.mutate(email.trim());
+  };
 
-  if (isSuccess) {
+  if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-        <Card className="w-full max-w-md text-center py-8">
-          <CardHeader>
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <MailCheck className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
-            <CardDescription className="mt-2 text-base">
-              If an account exists for <strong>{form.getValues('email')}</strong>, 
-              we have sent a password reset link.
-            </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex flex-col gap-4 mt-4">
-            <Button asChild variant="outline" className="w-full">
-              <Link to="/login">Back to Login</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+        <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
+          <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            Check Your Email
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            If an account exists with this email, you will receive a password reset link.
+          </p>
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+          >
+            Back to Sign In
+          </button>
+        </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-muted/30">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
-          <CardDescription>
-            Enter your email address and we'll send you a link to reset your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="m@example.com"
-                        {...field}
-                        disabled={forgotPasswordMutation.isPending}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={forgotPasswordMutation.isPending}
-              >
-                {forgotPasswordMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-6">
+          <Mail className="w-10 h-10 text-blue-600 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            Forgot Password?
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Enter your email and we'll send you a reset link.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={forgotMutation.isPending}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            {forgotMutation.isPending ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
                 Send Reset Link
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="flex justify-center text-sm">
-          <Link to="/login" className="flex items-center text-muted-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Login
-          </Link>
-        </CardFooter>
-      </Card>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+
+        <button
+          onClick={() => navigate("/login")}
+          className="w-full mt-4 text-center text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+        >
+          Back to Sign In
+        </button>
+      </div>
     </div>
-  )
+  );
 }
