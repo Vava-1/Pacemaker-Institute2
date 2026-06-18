@@ -48,6 +48,7 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-9 w-auto" />
+            <span className="font-bold text-lg text-brand-950 hidden sm:inline">Pacemaker Business Institute</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
