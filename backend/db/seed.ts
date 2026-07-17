@@ -1,4 +1,3 @@
-// @ts-expect-error bcryptjs has no types
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { fileURLToPath } from "url";
@@ -8,9 +7,21 @@ import {
 } from "./schema";
 
 const SEED_CONFIG = {
-  admin: { email: "mnasida@gmail.com", password: "Tonde@123" },
-  instructor: { email: "instructor@pacemaker.institute", password: "Instructor123!" },
-  student: { email: "student@pacemaker.institute", password: "Student123!" },
+  // Credentials can be overridden via env vars so the seed never ships a
+  // real password in source. The defaults below are random-looking but
+  // NOT real credentials — operators MUST override them in production.
+  admin: {
+    email: process.env.SEED_ADMIN_EMAIL || "admin@pacemaker.institute",
+    password: process.env.SEED_ADMIN_PASSWORD || "ChangeMe!Admin" + Math.random().toString(36).slice(2, 10),
+  },
+  instructor: {
+    email: process.env.SEED_INSTRUCTOR_EMAIL || "instructor@pacemaker.institute",
+    password: process.env.SEED_INSTRUCTOR_PASSWORD || "ChangeMe!Instructor" + Math.random().toString(36).slice(2, 10),
+  },
+  student: {
+    email: process.env.SEED_STUDENT_EMAIL || "student@pacemaker.institute",
+    password: process.env.SEED_STUDENT_PASSWORD || "ChangeMe!Student" + Math.random().toString(36).slice(2, 10),
+  },
 };
 
 const CATEGORIES: { name: string; slug: string; description: string; icon: string; color: string; order: number; parentSlug?: string }[] = [
@@ -708,7 +719,9 @@ async function upsertUser(opts: {
     emailVerifyToken: null,
   });
   const inserted = await db.select().from(users).where(eq(users.id, result.insertId)).limit(1);
-  console.log(`  + Created ${opts.role}: ${opts.email}`);
+  // Print the password ONCE at creation time so the operator can log in
+  // and change it. Never printed again — the value is hashed now.
+  console.log(`  + Created ${opts.role}: ${opts.email}  (initial password: ${opts.password})`);
   return inserted[0];
 }
 

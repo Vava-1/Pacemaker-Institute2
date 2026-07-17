@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router'
 import { trpc } from '@/providers/trpc'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,9 @@ export default function LessonPlayer() {
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null)
   const [paymentInfo, setPaymentInfo] = useState<any>(null)
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+  // Ref to the HTML5 <video> element so we can capture playback position
+  // and persist it as the user's last-watched timestamp (Project 16).
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const lessonIdNum = lessonId ? Number(lessonId) : undefined
 
@@ -95,7 +98,12 @@ export default function LessonPlayer() {
 
   const handleMarkComplete = () => {
     if (lessonIdNum) {
-      markCompleted.mutate({ lessonId: lessonIdNum })
+      // Capture current video playback position so the server can store
+      // the user's last-watched timestamp (Project 16 progress tracking).
+      const watchedSeconds = videoRef.current?.currentTime
+        ? Math.floor(videoRef.current.currentTime)
+        : undefined
+      markCompleted.mutate({ lessonId: lessonIdNum, watchedSeconds })
     }
   }
 
@@ -301,9 +309,10 @@ export default function LessonPlayer() {
                 {/* Video Player */}
                 <div className="aspect-video bg-black rounded-lg overflow-hidden shadow-lg">
                   {lessonContent.videoUrl ? (
-                    <video 
-                      src={lessonContent.videoUrl} 
-                      controls 
+                    <video
+                      ref={videoRef}
+                      src={lessonContent.videoUrl}
+                      controls
                       className="w-full h-full object-contain"
                       poster={course.thumbnail || undefined}
                     >

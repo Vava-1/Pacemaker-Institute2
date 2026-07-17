@@ -6,12 +6,13 @@ interface DataTableProps<T> {
   columns: any[]
   data: T[]
   searchPlaceholder?: string
+  searchable?: boolean
   selectable?: boolean
   actions?: React.ReactNode
   onRowClick?: (row: T) => void
 }
 
-export function DataTable<T>({ columns, data, searchPlaceholder, selectable, actions, onRowClick }: DataTableProps<T>) {
+export function DataTable<T>({ columns, data, searchPlaceholder, searchable = true, selectable, actions, onRowClick }: DataTableProps<T>) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set())
@@ -48,9 +49,9 @@ export function DataTable<T>({ columns, data, searchPlaceholder, selectable, act
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {(searchPlaceholder || actions) && (
+      {(searchable && (searchPlaceholder || actions)) && (
         <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
-          {searchPlaceholder && (
+          {searchable && searchPlaceholder && (
             <div className="relative flex-1 min-w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
@@ -108,9 +109,9 @@ export function DataTable<T>({ columns, data, searchPlaceholder, selectable, act
                     />
                   </td>
                 )}
-                {columns.map((col, j) => (
+                {columns.map((col: any, j: number) => (
                   <td key={j} className="px-4 py-3">
-                    {col.cell({ row: { original: row }, getValue: () => row[col.accessor || col.id] })}
+                    {col.cell({ row: { original: row }, getValue: () => (row as any)[col.accessor || col.id] })}
                   </td>
                 ))}
               </tr>

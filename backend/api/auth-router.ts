@@ -3,10 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { createRouter, publicProcedure, authedQuery } from "./trpc";
 import { getDb } from "./queries/connection";
-import { users, passwordResets } from "@db/schema";
-import { env } from "./lib/env";
+import { users } from "@db/schema";
 import { logger } from "./lib/logger";
-import bcrypt from "bcryptjs";
 import {
   hashPassword,
   verifyPassword,
@@ -21,6 +19,7 @@ import {
   sendWelcomeEmail,
   sendPasswordResetEmail,
 } from "./lib/mailer";
+import { consumeOAuthCode } from "./lib/google-auth";
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
@@ -128,7 +127,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
 
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
+      const tokenPayload = { id: user.id, sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
 
@@ -169,7 +168,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
       }
 
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
+      const tokenPayload = { id: user.id, sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
 
@@ -196,13 +195,9 @@ export const authRouter = createRouter({
 
       if (userRows.length > 0) {
         const user = userRows[0];
-        const resetToken = await createPasswordResetToken(user.id, user.email);
-
-        await db.insert(passwordResets).values({
-          userId: user.id,
-          token: resetToken,
-          expiresAt: new Date(Date.now() + 3600000),
-        });
+        // createPasswordResetToken persists the SHA-256 hash to the DB
+        // and returns the raw token for the email link.
+        const resetToken = await createPasswordResetToken(user.id);
 
         sendPasswordResetEmail(user.email, user.name ?? 'User', resetToken).catch((err) =>
           logger.error("Failed to send password reset email", { error: err })
@@ -317,4 +312,20 @@ export const authRouter = createRouter({
 
     return userRows[0];
   }),
+
+  /**
+   * Exchange the one-time code from the Google OAuth callback redirect
+   * for the actual JWT pair. This keeps tokens out of the URL — the
+   * callback only redirects with `?code=...`, which the frontend then
+   * swaps here.
+   */
+  exchangeOAuthCode: publicProcedure
+    .input(z.object({ code: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const tokens = consumeOAuthCode(input.code);
+      if (!tokens) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired OAuth code" });
+      }
+      return tokens;
+    }),
 });

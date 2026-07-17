@@ -16,6 +16,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
+# tini provides proper PID 1 signal handling so SIGTERM from Railway
+# reaches Node.js cleanly (no zombie processes, no orphaned DB conns).
+RUN apk add --no-cache tini libc6-compat
 RUN addgroup -g 1001 -S nodejs && adduser -S pacemaker -u 1001
 WORKDIR /app
 
@@ -34,7 +37,9 @@ USER pacemaker
 
 EXPOSE 3000
 
+# Use /api/health to match railway.json healthcheckPath.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/live', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
 
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/boot.js"]

@@ -57,7 +57,10 @@ export function createPool(): mysql.Pool {
     keepAliveInitialDelay: 10000,
     connectTimeout: 15000,
     idleTimeout: 600000,
-    ssl: useSSL ? { rejectUnauthorized: false } : undefined,
+    // Use TLS for external (non-local, non-Railway-internal) hosts.
+    // rejectUnauthorized is enabled so MITM attacks are rejected — the
+    // prior `false` setting disabled certificate verification entirely.
+    ssl: useSSL ? { rejectUnauthorized: true } : undefined,
   } as mysql.PoolOptions);
 }
 

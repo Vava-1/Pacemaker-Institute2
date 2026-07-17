@@ -71,16 +71,22 @@ How to fix:
 `;
     console.error(banner);
 
-    // IMPORTANT: Even when optional fields fail validation, preserve the
-    // actual DATABASE_URL and JWT secrets from process.env so the server can
-    // still connect to the database.  Using a hardcoded fallback DATABASE_URL
-    // of "" would silently break every database call.
+    // In production we MUST NOT boot with missing/invalid secrets — that
+    // would risk signing JWTs with a publicly-known fallback. Crash so the
+    // orchestrator (Railway/Render) restarts and surfaces the error.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[env] Refusing to boot in production with invalid environment.");
+      process.exit(1);
+    }
+
+    // In development, fall back to a working but obviously-insecure dev
+    // secret so `npm run dev` still works without a .env file.
     const fallback: Env = {
       NODE_ENV: (process.env.NODE_ENV as any) ?? "development",
       PORT: process.env.PORT ?? "3000",
       DATABASE_URL: process.env.DATABASE_URL ?? "",
-      JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? "dev_access_secret_do_not_use_in_prod_xxxxx",
-      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? "dev_refresh_secret_do_not_use_in_prod_xxxxx",
+      JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET ?? "dev-only-access-secret-32chars-min!!",
+      JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? "dev-only-refresh-secret-32chars-min!!",
       FRONTEND_URL: process.env.FRONTEND_URL ?? "http://localhost:5173",
       LOG_LEVEL: "info",
       RATE_LIMIT_WINDOW_MS: "60000",

@@ -14,6 +14,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./frontend/src/*"],
@@ -21,7 +23,14 @@
       "@db/*": ["./backend/db/*"],
       "@contracts/*": ["./contracts/*"]
     },
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals", "node"]
   },
-  "include": ["frontend/src/**/*.ts", "frontend/src/**/*.tsx", "frontend/tests/**/*.ts"]
+  "include": [
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.tsx",
+    "frontend/tests/**/*.ts",
+    "backend/**/*.ts",
+    "contracts/**/*.ts"
+  ]
 }
+

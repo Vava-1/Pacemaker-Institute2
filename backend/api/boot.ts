@@ -7,12 +7,14 @@ import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import Stripe from "stripe";
 import { eq } from "drizzle-orm";
+import crypto from "node:crypto";
 import { appRouter } from "./router";
 import { createContext } from "./context";
 
 declare module "hono" {
   interface ContextVariableMap {
     requestId: string;
+    user: import("@db/schema").User;
   }
 }
 
@@ -42,10 +44,12 @@ app.use("*", secureHeaders({
   crossOriginOpenerPolicy: "same-origin",
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
+    // 'unsafe-inline' kept for now because Vite injects inline scripts in dev;
+    // tighten to nonces in a follow-up.
     scriptSrc: ["'self'", "'unsafe-inline'"],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
-    imgSrc: ["'self'", "data:", "blob:", "https:", "https://res.cloudinary.com"],
+    imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com"],
     connectSrc: ["'self'", "https://api.stripe.com"],
     frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
     mediaSrc: ["'self'", "https:", "blob:"],
@@ -53,6 +57,9 @@ app.use("*", secureHeaders({
     baseUri: ["'self'"],
     formAction: ["'self'"],
     upgradeInsecureRequests: [],
+    // Restrict powerful APIs
+    // (hono/secure-headers doesn't have a direct Permissions-Policy option;
+    // the header is set below via a custom middleware)
   },
 }));
 
@@ -171,7 +178,8 @@ app.get("/api/health/detailed", async (c) => {
   if (hasRealStripeKey) {
     const stripeStart = Date.now();
     try {
-      const stripe = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+      // Drop the bogus apiVersion override; let Stripe use the account default.
+      const stripe = new Stripe(env.stripeSecretKey);
       await stripe.balance.retrieve();
       services.stripe = { status: "ok", latencyMs: Date.now() - stripeStart };
     } catch (e: any) {
@@ -219,7 +227,7 @@ app.get("/api/live", (c) => {
 
 // OAuth routes
 app.get("/api/oauth/google", (c) => {
-  const url = createGoogleAuthUrl();
+  const url = createGoogleAuthUrl(c);
   return c.redirect(url);
 });
 
@@ -245,21 +253,31 @@ app.onError((err, c) => {
   );
 });
 
-// Global error handlers to prevent silent crashes
+// Global error handlers — per Node.js docs, after an uncaughtException the
+// process state is undefined and it MUST exit. We log and let Railway restart.
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION:", err);
-  logger.error("Uncaught Exception", { error: err.message, stack: err.stack });
+  logger.error("Uncaught Exception — exiting", { error: err.message, stack: err.stack });
+  process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   const err = reason instanceof Error ? reason : new Error(String(reason));
   console.error("UNHANDLED REJECTION:", err);
-  logger.error("Unhandled Rejection", { error: err.message, stack: err.stack });
+  logger.error("Unhandled Rejection — exiting", { error: err.message, stack: err.stack });
+  process.exit(1);
 });
 
-// Graceful shutdown handlers
+// Graceful shutdown handlers — drain DB pool before exit.
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received. Shutting down gracefully...");
+  try {
+    const { closeDatabase } = await import("./queries/connection");
+    await closeDatabase();
+    logger.info("Database pool closed.");
+  } catch (e: any) {
+    logger.error("Error closing database pool", { error: e?.message });
+  }
   setTimeout(() => {
     logger.info("Forced shutdown after timeout");
     process.exit(0);
@@ -268,11 +286,30 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   logger.info("SIGINT received. Shutting down gracefully...");
+  try {
+    const { closeDatabase } = await import("./queries/connection");
+    await closeDatabase();
+    logger.info("Database pool closed.");
+  } catch (e: any) {
+    logger.error("Error closing database pool", { error: e?.message });
+  }
   setTimeout(() => {
     logger.info("Forced shutdown after timeout");
     process.exit(0);
   }, 5000).unref();
 });
+
+// Initialize Sentry before serving traffic (production only).
+try {
+  if (env.isProduction && process.env.SENTRY_DSN) {
+    await logger.init.sentry();
+    logger.info("Sentry initialized.");
+  } else {
+    logger.info("Sentry not initialized (not production or no SENTRY_DSN).");
+  }
+} catch (e: any) {
+  logger.error("Failed to initialize Sentry", { error: e?.message });
+}
 
 const { serve } = await import("@hono/node-server");
 const { serveStaticFiles } = await import("./lib/vite");

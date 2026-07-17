@@ -222,7 +222,7 @@ export default function CourseDetail() {
                         disabled={confirmPayment.isPending}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
                       >
-                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid â€” Confirm'}
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
                       </Button>
                       <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
                     </div>
@@ -269,7 +269,7 @@ export default function CourseDetail() {
                     className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 text-white mb-3"
                     onClick={() => setShowPayment(true)}
                   >
-                    Pay Now â€” {Number(course.price).toLocaleString()} Frw
+                    Pay Now — {Number(course.price).toLocaleString()} Frw
                   </Button>
                 )
               ) : isFree ? (
@@ -299,7 +299,7 @@ export default function CourseDetail() {
                         disabled={confirmPayment.isPending}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white mb-2"
                       >
-                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid â€” Confirm'}
+                        {confirmPayment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Confirming...</> : 'I Have Paid — Confirm'}
                       </Button>
                       <p className="text-xs text-slate-400">Send exact amount to the number shown, then click confirm.</p>
                     </div>
@@ -347,7 +347,7 @@ export default function CourseDetail() {
                     onClick={() => setShowPayment(true)}
                   >
                     <Award className="mr-2 h-4 w-4" />
-                    Enroll Now â€” {Number(course.price).toLocaleString()} Frw
+                    Enroll Now — {Number(course.price).toLocaleString()} Frw
                   </Button>
                 )
               )}
