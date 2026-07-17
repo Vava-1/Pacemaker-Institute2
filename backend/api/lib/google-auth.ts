@@ -210,7 +210,7 @@ export async function handleGoogleCallback(c: Context) {
       return c.redirect(`${env.frontendUrl}/login?error=account_suspended`);
     }
 
-    const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? "", role: user.role };
+    const tokenPayload = { id: user.id, sub: user.id, email: user.email, name: user.name ?? "", role: user.role };
     const accessToken = await createAccessToken(tokenPayload);
     const refreshToken = await createRefreshToken(tokenPayload);
 

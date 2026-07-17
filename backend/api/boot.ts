@@ -14,6 +14,7 @@ import { createContext } from "./context";
 declare module "hono" {
   interface ContextVariableMap {
     requestId: string;
+    user: import("@db/schema").User;
   }
 }
 

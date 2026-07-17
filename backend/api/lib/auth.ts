@@ -103,7 +103,7 @@ export function validatePassword(password: string): PasswordValidationResult {
 export async function createAccessToken(user: TokenUser): Promise<string> {
   return new SignJWT({
     userId: user.id,
-    sub: user.id,
+    sub: String(user.id),
     email: user.email,
     name: user.name,
     role: user.role,
@@ -119,7 +119,7 @@ export async function createAccessToken(user: TokenUser): Promise<string> {
 export async function createRefreshToken(user: TokenUser): Promise<string> {
   return new SignJWT({
     userId: user.id,
-    sub: user.id,
+    sub: String(user.id),
     email: user.email,
     name: user.name,
     role: user.role,
@@ -223,7 +223,7 @@ function hashToken(token: string): string {
 }
 
 /** Create a reset token, persist its hash, return the raw token for the email link. */
-export async function createPasswordResetToken(userId: number, email: string): Promise<string> {
+export async function createPasswordResetToken(userId: number): Promise<string> {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);

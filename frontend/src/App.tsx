@@ -122,7 +122,7 @@ export default function App() {
               <Suspense fallback={<RouteLoader />}><PaymentSuccess /></Suspense>
             </ProtectedRoute>
           } />
-          <Route path="/certificates/:id" element={
+          <Route path="/certificates/:certificateNumber" element={
             <ProtectedRoute>
               <Suspense fallback={<RouteLoader />}><CertificateView /></Suspense>
             </ProtectedRoute>

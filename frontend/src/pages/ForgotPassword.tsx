@@ -25,7 +25,7 @@ export default function ForgotPassword() {
       toast.error("Please enter your email address");
       return;
     }
-    forgotMutation.mutate(email.trim());
+    forgotMutation.mutate({ email: email.trim() });
   };
 
   if (sent) {

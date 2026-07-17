@@ -3,10 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { createRouter, publicProcedure, authedQuery } from "./trpc";
 import { getDb } from "./queries/connection";
-import { users, passwordResets } from "@db/schema";
-import { env } from "./lib/env";
+import { users } from "@db/schema";
 import { logger } from "./lib/logger";
-import bcrypt from "bcryptjs";
 import {
   hashPassword,
   verifyPassword,
@@ -129,7 +127,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid email or password" });
       }
 
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
+      const tokenPayload = { id: user.id, sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
 
@@ -170,7 +168,7 @@ export const authRouter = createRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Account suspended" });
       }
 
-      const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
+      const tokenPayload = { id: user.id, sub: user.id, email: user.email, name: user.name ?? '', role: user.role };
       const accessToken = await createAccessToken(tokenPayload);
       const refreshToken = await createRefreshToken(tokenPayload);
 
@@ -197,13 +195,9 @@ export const authRouter = createRouter({
 
       if (userRows.length > 0) {
         const user = userRows[0];
-        const resetToken = await createPasswordResetToken(user.id, user.email);
-
-        await db.insert(passwordResets).values({
-          userId: user.id,
-          token: resetToken,
-          expiresAt: new Date(Date.now() + 3600000),
-        });
+        // createPasswordResetToken persists the SHA-256 hash to the DB
+        // and returns the raw token for the email link.
+        const resetToken = await createPasswordResetToken(user.id);
 
         sendPasswordResetEmail(user.email, user.name ?? 'User', resetToken).catch((err) =>
           logger.error("Failed to send password reset email", { error: err })

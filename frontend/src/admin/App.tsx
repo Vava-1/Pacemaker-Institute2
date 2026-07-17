@@ -1,4 +1,5 @@
-import { Routes, Route, lazy, Suspense } from 'react-router'
+import { Routes, Route } from 'react-router'
+import { lazy, Suspense } from 'react'
 import { AdminLayout } from './layout/AdminLayout'
 import Overview from './pages/Dashboard'
 import Users from './pages/Users'
