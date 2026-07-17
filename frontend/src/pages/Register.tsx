@@ -1,216 +1,265 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import { trpc } from "../lib/trpc";
-import { useAuthStore } from "../store/auth";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { GraduationCap, Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { GraduationCap, Eye, EyeOff, Mail, Lock, User, ArrowRight, BookOpen, Briefcase } from "lucide-react";
+import { trpc, setAuthToken } from "@/providers/trpc";
+import { useAuth } from "@/hooks/useAuth";
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { refresh } = useAuth();
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    role: "user" as "user" | "instructor",
+  });
   const [showPassword, setShowPassword] = useState(false);
-  const [noAccountError, setNoAccountError] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const loginMutation = useMutation({
-    mutationFn: (data: { email: string; password: string }) =>
-      trpc.auth.login.mutate(data),
-    onSuccess: (data) => {
-      setAuth(data.user, data.accessToken, data.refreshToken);
-      toast.success(`Welcome back, ${data.user.name || "Learner"}!`);
-
-      // Redirect based on role
-      if (data.user.role === "instructor") {
-        navigate("/instructor/dashboard");
-      } else if (data.user.role === "admin") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/dashboard");
+  const registerMutation = trpc.auth.register.useMutation({
+    onSuccess: async (_data) => {
+      // Auto-login: call login mutation to get tokens
+      try {
+        const loginResult = await loginForToken.mutateAsync({
+          email: form.email.trim(),
+          password: form.password,
+        });
+        setAuthToken(loginResult.accessToken);
+        localStorage.setItem("refresh_token", loginResult.refreshToken);
+        await refresh();
+        toast.success(`Welcome, ${form.name}!`);
+        navigate(loginResult.user.role === "instructor" ? "/admin/dashboard" : "/dashboard");
+      } catch {
+        toast.success("Account created! Please sign in.");
+        navigate("/login");
       }
     },
     onError: (error: any) => {
-      const message = error.message || "";
-
-      // Check for "no account" message from backend
-      if (
-        message.includes("don't have an account") ||
-        message.includes("No account found") ||
-        error.code === "NOT_FOUND"
-      ) {
-        setNoAccountError(true);
-        toast.error("You don't have an account. Create your account to continue.");
-      } else if (message.includes("verify your email")) {
-        setNoAccountError(false);
-        toast.error(message);
-        // Optionally redirect to resend verification
-        setTimeout(() => {
-          navigate("/resend-verification", { state: { email } });
-        }, 2000);
+      const code = error?.data?.code;
+      const message = error?.message || "";
+      if (code === "CONFLICT") {
+        setErrors({ email: "An account with this email already exists" });
+        toast.error("An account with this email already exists");
       } else {
-        setNoAccountError(false);
-        toast.error(message || "Failed to sign in. Please try again.");
+        toast.error(message || "Failed to create account");
       }
     },
   });
 
+  // Separate mutation used to fetch tokens right after register
+  const loginForToken = trpc.auth.login.useMutation();
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!form.name.trim() || form.name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters";
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Please enter a valid email address";
+    }
+    if (form.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
+    } else if (!/[A-Z]/.test(form.password) || !/[a-z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      newErrors.password = "Password must include uppercase, lowercase, and a number";
+    }
+    if (form.confirmPassword !== form.password) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setNoAccountError(false);
-
-    if (!email.trim()) {
-      toast.error("Please enter your email address");
-      return;
-    }
-
-    if (!password) {
-      toast.error("Please enter your password");
-      return;
-    }
-
-    loginMutation.mutate({
-      email: email.trim(),
-      password,
+    if (!validate()) return;
+    registerMutation.mutate({
+      name: form.name.trim(),
+      email: form.email.trim(),
+      password: form.password,
+      role: form.role,
     });
   };
 
+  const update = (field: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [field]: value }));
+    if (errors[field]) setErrors((e) => ({ ...e, [field]: "" }));
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 px-4 py-8">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Pacemaker Institute
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Sign in to your account
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">Create Your Account</h1>
+          <p className="text-muted-foreground mt-1">Start learning today with Pacemaker Institute</p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8">
-          {/* No Account Error Banner */}
-          {noAccountError && (
-            <div className="mb-5 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-orange-800 dark:text-orange-300">
-                  You don't have an account
-                </p>
-                <p className="text-sm text-orange-700 dark:text-orange-400 mt-0.5">
-                  Create your account to continue learning with us.
-                </p>
-                <Link
-                  to="/register"
-                  className="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300"
-                >
-                  Create Account
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-          )}
-
+        <div className="bg-card text-card-foreground rounded-2xl shadow-xl p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Name */}
+            <div>
+              <label htmlFor="reg-name" className="block text-sm font-medium text-foreground mb-1.5">
+                Full Name
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  id="reg-name"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => update("name", e.target.value)}
+                  placeholder="Your name"
+                  className="w-full pl-10 pr-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+            </div>
+
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label htmlFor="reg-email" className="block text-sm font-medium text-foreground mb-1.5">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
+                  id="reg-email"
                   type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setNoAccountError(false);
-                  }}
+                  value={form.email}
+                  onChange={(e) => update("email", e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   required
                 />
+              </div>
+              {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+            </div>
+
+            {/* Role */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">I want to</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => update("role", "user")}
+                  aria-pressed={form.role === "user"}
+                  className={`flex flex-col items-center justify-center gap-1 p-3 border rounded-lg transition-all ${
+                    form.role === "user"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                      : "border-border hover:border-blue-400 text-muted-foreground"
+                  }`}
+                >
+                  <BookOpen className="w-5 h-5" />
+                  <span className="text-sm font-medium">Learn</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => update("role", "instructor")}
+                  aria-pressed={form.role === "instructor"}
+                  className={`flex flex-col items-center justify-center gap-1 p-3 border rounded-lg transition-all ${
+                    form.role === "instructor"
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                      : "border-border hover:border-blue-400 text-muted-foreground"
+                  }`}
+                >
+                  <Briefcase className="w-5 h-5" />
+                  <span className="text-sm font-medium">Teach</span>
+                </button>
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Password
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <label htmlFor="reg-password" className="block text-sm font-medium text-foreground mb-1.5">
+                Password
+              </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
+                  id="reg-password"
                   type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="w-full pl-10 pr-10 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  value={form.password}
+                  onChange={(e) => update("password", e.target.value)}
+                  placeholder="At least 8 chars, with A-Z, a-z, 0-9"
+                  className="w-full pl-10 pr-10 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label htmlFor="reg-confirm" className="block text-sm font-medium text-foreground mb-1.5">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  id="reg-confirm"
+                  type={showPassword ? "text" : "password"}
+                  value={form.confirmPassword}
+                  onChange={(e) => update("confirmPassword", e.target.value)}
+                  placeholder="Re-enter your password"
+                  className="w-full pl-10 pr-4 py-2.5 border border-input rounded-lg bg-background text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+              {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
             </div>
 
             {/* Submit */}
             <button
               type="submit"
-              disabled={loginMutation.isPending}
+              disabled={registerMutation.isPending}
               className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
             >
-              {loginMutation.isPending ? (
+              {registerMutation.isPending ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  Sign In
+                  Create Account
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+              <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                New here?
-              </span>
+              <span className="px-2 bg-card text-muted-foreground">Already have an account?</span>
             </div>
           </div>
 
-          {/* Create Account Link */}
           <Link
-            to="/register"
-            className="w-full block text-center py-3 px-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            to="/login"
+            className="w-full block text-center py-3 px-4 border border-border text-foreground font-semibold rounded-lg hover:bg-muted transition-colors"
           >
-            Create Account
+            Sign In
           </Link>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-          Protected by enterprise-grade security
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          By creating an account, you agree to our{" "}
+          <Link to="/terms" className="underline hover:text-foreground">Terms</Link> and{" "}
+          <Link to="/privacy" className="underline hover:text-foreground">Privacy Policy</Link>.
         </p>
       </div>
     </div>

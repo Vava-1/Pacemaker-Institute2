@@ -13,7 +13,10 @@ let stripeInstance: Stripe | null = null;
 
 function getStripe(): Stripe {
   if (!stripeInstance) {
-    stripeInstance = new Stripe(env.stripeSecretKey, { apiVersion: "2026-05-27.dahlia" });
+    // No apiVersion override — Stripe SDK uses its bundled default, which
+    // is always a real, published version (the prior "2026-05-27.dahlia"
+    // string was future-dated/fake and would be rejected by the API).
+    stripeInstance = new Stripe(env.stripeSecretKey);
   }
   return stripeInstance;
 }

@@ -21,6 +21,7 @@ import {
   sendWelcomeEmail,
   sendPasswordResetEmail,
 } from "./lib/mailer";
+import { consumeOAuthCode } from "./lib/google-auth";
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name must be at most 100 characters"),
@@ -317,4 +318,20 @@ export const authRouter = createRouter({
 
     return userRows[0];
   }),
+
+  /**
+   * Exchange the one-time code from the Google OAuth callback redirect
+   * for the actual JWT pair. This keeps tokens out of the URL — the
+   * callback only redirects with `?code=...`, which the frontend then
+   * swaps here.
+   */
+  exchangeOAuthCode: publicProcedure
+    .input(z.object({ code: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const tokens = consumeOAuthCode(input.code);
+      if (!tokens) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid or expired OAuth code" });
+      }
+      return tokens;
+    }),
 });

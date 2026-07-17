@@ -1,7 +1,21 @@
+/**
+ * Cloudinary upload router.
+ *
+ * Security:
+ *  - ALL endpoints require a valid access token (Bearer header).
+ *  - The proxy upload (POST /) and the direct-upload signature (GET /signature)
+ *    additionally require an authenticated, non-suspended user.
+ *  - DELETE /:publicId requires the user to be an instructor or admin
+ *    (students cannot delete course assets).
+ */
 import { Hono } from "hono";
 import { v2 as cloudinary } from "cloudinary";
 import { env } from "./env";
 import { logger } from "./logger";
+import { verifyAccessToken } from "./auth";
+import { getDb } from "../queries/connection";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -35,6 +49,39 @@ const MIME_TYPE_TO_RESOURCE_TYPE: Record<string, string> = {
 };
 
 export const uploadRouter = new Hono();
+
+/** Extract and verify the Bearer access token. Returns the user row or null. */
+async function getUserFromRequest(c: any) {
+  const authHeader = c.req.header("Authorization") || c.req.header("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
+  try {
+    const payload = await verifyAccessToken(token);
+    if (!payload?.userId) return null;
+    const db = getDb();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, Number(payload.userId)))
+      .limit(1);
+    if (!user || user.isSuspended) return null;
+    return user;
+  } catch {
+    return null;
+  }
+}
+
+function unauthorized(c: any) {
+  return c.json({ error: "Authentication required" }, 401);
+}
+
+// Auth middleware for all upload routes
+uploadRouter.use("*", async (c, next) => {
+  const user = await getUserFromRequest(c);
+  if (!user) return unauthorized(c);
+  c.set("user", user);
+  await next();
+});
 
 // Proxy upload — for smaller files, goes through our server
 uploadRouter.post("/", async (c) => {
@@ -142,6 +189,12 @@ uploadRouter.delete("/:publicId", async (c) => {
     return c.json({ error: "Cloudinary is not configured" }, 503);
   }
 
+  const user = c.get("user");
+  // Only instructors and admins can delete assets
+  if (user.role !== "instructor" && user.role !== "admin") {
+    return c.json({ error: "Insufficient permissions to delete assets" }, 403);
+  }
+
   const publicId = c.req.param("publicId");
 
   if (!/^[a-zA-Z0-9_/]+$/.test(publicId)) {
@@ -152,7 +205,7 @@ uploadRouter.delete("/:publicId", async (c) => {
 
   try {
     await cloudinary.uploader.destroy(publicId);
-    logger.info("File deleted from cloudinary", { publicId });
+    logger.info("File deleted from cloudinary", { publicId, userId: user.id });
     return c.json({ success: true });
   } catch (err: any) {
     logger.error("Delete failed", { error: err.message, publicId });

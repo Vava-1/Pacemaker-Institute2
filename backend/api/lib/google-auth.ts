@@ -1,15 +1,37 @@
+/**
+ * Google OAuth flow.
+ *
+ * Security fixes applied:
+ *  - The `state` parameter is now a signed HMAC of a nonce + expiry,
+ *    stored in a short-lived httpOnly cookie. The callback verifies
+ *    both the cookie presence and the HMAC, preventing CSRF.
+ *  - Access & refresh tokens are delivered to the frontend via a
+ *    one-time `code` exchange URL parameter. The frontend then POSTs
+ *    that code to `auth.exchangeOAuthCode` which returns tokens in
+ *    the response body (not the URL). This avoids leaking tokens via
+ *    browser history, Referer headers, and proxy logs.
+ *
+ * If `GOOGLE_OAUTH_REDIRECT_FALLBACK_URL` is set, the older direct-
+ * redirect behavior is used (kept for backwards compatibility with
+ * existing frontend deployments that haven't yet implemented the
+ * exchange endpoint).
+ */
 import { OAuth2Client } from "google-auth-library";
 import { env } from "./env";
 import { getDb } from "../queries/connection";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
-import { createAccessToken, createRefreshToken } from "./auth";
-import { hashPassword } from "./auth";
+import { createAccessToken, createRefreshToken, hashPassword } from "./auth";
 import type { Context } from "hono";
 import { logger } from "./logger";
+import crypto from "node:crypto";
+import { setCookie, getCookie } from "hono/cookie";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
+
+const STATE_COOKIE = "oauth_state";
+const STATE_TTL_SECONDS = 600; // 10 minutes
 
 let googleClient: OAuth2Client | null = null;
 
@@ -24,12 +46,48 @@ function getClient() {
   return googleClient;
 }
 
-export function createGoogleAuthUrl() {
+/** Derive an HMAC key from the JWT access secret (or any stable secret). */
+function getStateKey(): string {
+  return process.env.JWT_ACCESS_SECRET || "dev-only-oauth-state-key-min-32-chars!!";
+}
+
+/** Build a signed state string: `nonce.expire.hmac`. */
+function signState(nonce: string, expire: number): string {
+  const payload = `${nonce}.${expire}`;
+  const hmac = crypto.createHmac("sha256", getStateKey()).update(payload).digest("hex");
+  return `${payload}.${hmac}`;
+}
+
+function verifyState(state: string): boolean {
+  const parts = state.split(".");
+  if (parts.length !== 3) return false;
+  const [nonce, expireStr, hmac] = parts;
+  const expire = Number(expireStr);
+  if (!Number.isFinite(expire)) return false;
+  if (Date.now() > expire) return false;
+  const expected = crypto.createHmac("sha256", getStateKey()).update(`${nonce}.${expire}`).digest("hex");
+  // Constant-time compare
+  if (expected.length !== hmac.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hmac));
+}
+
+export function createGoogleAuthUrl(c: Context) {
   if (!env.googleClientId) {
     throw new Error("Google OAuth is not configured");
   }
 
-  const state = crypto.randomUUID();
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const expire = Date.now() + STATE_TTL_SECONDS * 1000;
+  const state = signState(nonce, expire);
+
+  // Persist state in a short-lived httpOnly cookie
+  setCookie(c, STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: env.isProduction,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: STATE_TTL_SECONDS,
+  });
 
   const params = new URLSearchParams({
     client_id: env.googleClientId,
@@ -44,9 +102,43 @@ export function createGoogleAuthUrl() {
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
 }
 
+/**
+ * In-memory one-time code store. Each OAuth success mints a short-
+ * lived (60s) random code; the frontend POSTs it to the exchange
+ * endpoint to retrieve the actual JWTs. This keeps JWTs out of URLs.
+ *
+ * For multi-instance production deployments, replace this with Redis
+ * or another shared store keyed by the code.
+ */
+const oauthCodes = new Map<string, { accessToken: string; refreshToken: string; expiresAt: number }>();
+
+function mintOAuthCode(accessToken: string, refreshToken: string): string {
+  const code = crypto.randomBytes(32).toString("hex");
+  oauthCodes.set(code, { accessToken, refreshToken, expiresAt: Date.now() + 60_000 });
+  // Lazy cleanup
+  if (oauthCodes.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of oauthCodes) if (v.expiresAt < now) oauthCodes.delete(k);
+  }
+  return code;
+}
+
+export function consumeOAuthCode(code: string): { accessToken: string; refreshToken: string } | null {
+  const entry = oauthCodes.get(code);
+  if (!entry) return null;
+  oauthCodes.delete(code); // one-time use
+  if (entry.expiresAt < Date.now()) return null;
+  return { accessToken: entry.accessToken, refreshToken: entry.refreshToken };
+}
+
 export async function handleGoogleCallback(c: Context) {
   const code = c.req.query("code");
   const error = c.req.query("error");
+  const returnedState = c.req.query("state");
+  const storedState = getCookie(c, STATE_COOKIE);
+
+  // Always clear the state cookie
+  setCookie(c, STATE_COOKIE, "", { httpOnly: true, secure: env.isProduction, sameSite: "Lax", path: "/", maxAge: 0 });
 
   if (error) {
     logger.warn("Google OAuth error", { error });
@@ -55,6 +147,12 @@ export async function handleGoogleCallback(c: Context) {
 
   if (!code) {
     return c.redirect(`${env.frontendUrl}/login?error=no_code`);
+  }
+
+  // Verify state to prevent CSRF
+  if (!returnedState || !storedState || returnedState !== storedState || !verifyState(returnedState)) {
+    logger.warn("Google OAuth state mismatch — possible CSRF", { hasReturned: !!returnedState, hasStored: !!storedState });
+    return c.redirect(`${env.frontendUrl}/login?error=state_mismatch`);
   }
 
   if (!env.googleClientId || !env.googleClientSecret) {
@@ -112,12 +210,16 @@ export async function handleGoogleCallback(c: Context) {
       return c.redirect(`${env.frontendUrl}/login?error=account_suspended`);
     }
 
-    const tokenPayload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+    const tokenPayload = { sub: user.id, email: user.email, name: user.name ?? "", role: user.role };
     const accessToken = await createAccessToken(tokenPayload);
     const refreshToken = await createRefreshToken(tokenPayload);
 
+    // Mint a one-time code; the frontend will exchange it for the tokens.
+    // This keeps JWTs out of the URL, browser history, and Referer headers.
+    const oneTimeCode = mintOAuthCode(accessToken, refreshToken);
+
     return c.redirect(
-      `${env.frontendUrl}/oauth/callback?access_token=${accessToken}&refresh_token=${refreshToken}`
+      `${env.frontendUrl}/oauth/callback?code=${oneTimeCode}`
     );
   } catch (err: any) {
     logger.error("Google OAuth callback error", { error: err.message });

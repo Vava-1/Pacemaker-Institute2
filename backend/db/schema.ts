@@ -21,8 +21,9 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("password_hash", { length: 255 }),
   name: varchar("name", { length: 255 }),
   avatar: text("avatar"),
-  // Role: student (default) | instructor | admin
-  role: mysqlEnum("role", ["student", "instructor", "admin"]).default("student").notNull(),
+  // Role: user (default learner) | instructor | admin
+  // Matches the actual DB column (see migrations/0000_same_shaman.sql:361).
+  role: mysqlEnum("role", ["user", "instructor", "admin"]).default("user").notNull(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   emailVerifyToken: varchar("email_verify_token", { length: 255 }),
   otpCode: text("otp_code"),

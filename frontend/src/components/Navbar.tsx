@@ -9,15 +9,17 @@ import {
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { MobileSidebar } from '@/components/Sidebar'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from 'next-themes'
 import {
-  Search, Bell, Menu, X, LogOut, User, Settings,
+  Search, Bell, Menu, X, LogOut, User, Settings, Sun, Moon,
 } from 'lucide-react'
 import { useState } from 'react'
 
 export function Navbar() {
   const { t } = useTranslation()
-
+  const { theme, setTheme } = useTheme()
   const { user, logout } = useAuth()
 
   const navLinks: { label: string; href: string; badge?: string }[] = [
@@ -44,12 +46,15 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60">
+      <nav className="fixed top-0 left-0 right-0 z-50 h-14 md:h-16 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-9 w-auto" />
-            <span className="font-bold text-lg text-brand-950 hidden sm:inline">Pacemaker Business Institute</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            {user && <MobileSidebar />}
+            <Link to="/" className="flex items-center gap-2.5">
+              <img src="/PBI_logo.jpg" alt="" className="h-9 w-auto" />
+              <span className="font-bold text-lg text-foreground hidden sm:inline">Pacemaker Business Institute</span>
+            </Link>
+          </div>
 
           <div className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
             {navLinks.map(link => {
@@ -58,11 +63,12 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   to={link.href}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
                     "relative flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "text-blue-700 bg-blue-50"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      ? "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   )}
                 >
                   {link.label}
@@ -81,24 +87,36 @@ export function Navbar() {
               <div className="flex items-center gap-1 md:gap-2">
                 <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   placeholder={t('nav.searchPlaceholder')} className="w-32 sm:w-48 h-7 md:h-8 text-sm" autoFocus
+                  aria-label="Search"
                   onKeyDown={e => { if (e.key === 'Enter' && searchQuery.trim()) { navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`); setSearchOpen(false); setSearchQuery('') } }}
                 />
-                <Button variant="ghost" size="icon" className="h-7 md:h-8 w-7 md:w-8" onClick={() => { setSearchOpen(false); setSearchQuery('') }}>
+                <Button variant="ghost" size="icon" className="h-7 md:h-8 w-7 md:w-8" onClick={() => { setSearchOpen(false); setSearchQuery('') }} aria-label="Close search">
                   <X className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </Button>
               </div>
             ) : (
-              <Button variant="ghost" size="icon" className="h-7 md:h-8 w-7 md:w-8 text-slate-500" onClick={() => setSearchOpen(true)}>
+              <Button variant="ghost" size="icon" className="h-7 md:h-8 w-7 md:w-8 text-muted-foreground" onClick={() => setSearchOpen(true)} aria-label="Open search">
                 <Search className="h-3.5 w-3.5 md:h-4 md:w-4" />
               </Button>
             )}
+
+            {/* Dark mode toggle */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 md:h-8 w-7 md:w-8 text-muted-foreground"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
 
             <LanguageSwitcher />
 
             {user && (
               <>
-                <Link to="/notifications">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 relative text-slate-500">
+                <Link to="/notifications" aria-label={`${unreadCount ?? 0} unread notifications`}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 relative text-muted-foreground">
                     <Bell className="h-4 w-4" />
                     {unreadCount ? (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -117,7 +135,7 @@ export function Navbar() {
                           {user.name?.charAt(0) ?? 'U'}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-sm hidden lg:block max-w-[100px] truncate text-slate-700">{user.name}</span>
+                      <span className="text-sm hidden lg:block max-w-[100px] truncate text-foreground">{user.name}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
@@ -127,7 +145,7 @@ export function Navbar() {
                     <DropdownMenuItem onClick={() => navigate('/subscription')}>
                       <Settings className="mr-2 h-4 w-4" /> {t('nav.subscription')}
                     </DropdownMenuItem>
-                    {user.role === 'admin' && (
+                    {(user.role === 'admin' || user.role === 'instructor') && (
                       <DropdownMenuItem onClick={() => navigate('/admin')}>
                         <Settings className="mr-2 h-4 w-4" /> {t('nav.adminDashboard')}
                       </DropdownMenuItem>
@@ -144,7 +162,7 @@ export function Navbar() {
             {!user && (
               <div className="hidden sm:flex items-center gap-2">
                 <Link to="/login">
-                  <Button variant="ghost" className="h-9 px-4 text-sm font-medium text-slate-600 hover:text-slate-900">
+                  <Button variant="ghost" className="h-9 px-4 text-sm font-medium text-muted-foreground hover:text-foreground">
                     {t('nav.logIn')}
                   </Button>
                 </Link>
@@ -156,7 +174,8 @@ export function Navbar() {
               </div>
             )}
 
-            <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden text-slate-500" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            {/* Mobile menu (top-nav only) — sidebar items open via MobileSidebar */}
+            <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden text-muted-foreground" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu" aria-expanded={mobileMenuOpen}>
               {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
             </Button>
           </div>
@@ -164,7 +183,7 @@ export function Navbar() {
       </nav>
 
       {mobileMenuOpen && (
-        <div className="fixed top-16 left-0 right-0 z-40 md:hidden border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-lg">
+        <div className="fixed top-16 left-0 right-0 z-40 md:hidden border-b border-border bg-background/95 backdrop-blur-md shadow-lg">
           <div className="px-4 py-3 space-y-1">
             {navLinks.map(link => {
               const active = isActive(link.href)
@@ -173,11 +192,12 @@ export function Navbar() {
                   key={link.href}
                   to={link.href}
                   onClick={() => setMobileMenuOpen(false)}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                     active
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   {link.label}
@@ -190,7 +210,7 @@ export function Navbar() {
               )
             })}
             {!user && (
-              <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+              <div className="flex items-center gap-2 pt-3 border-t border-border mt-2">
                 <Link to="/login" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="outline" className="w-full h-9 text-sm">{t('nav.logIn')}</Button>
                 </Link>

@@ -5,13 +5,13 @@ import { Mail, Phone, MapPin } from 'lucide-react'
 export function Footer() {
   const { t } = useTranslation()
   return (
-    <footer className="bg-[#0f172a] text-slate-400 pt-10 md:pt-16 pb-6 md:pb-8">
+    <footer className="bg-sidebar bg-background text-sidebar-foreground text-sidebar-foreground/70 pt-10 md:pt-16 pb-6 md:pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-10">
         <div>
           <div className="flex items-center gap-2 mb-4">
             <img src="/PBI_logo.jpg" alt="Pacemaker Institute" className="h-8 w-auto" />
           </div>
-          <p className="text-sm text-slate-400 mb-4 leading-relaxed">
+          <p className="text-sm text-sidebar-foreground/70 mb-4 leading-relaxed">
             {t('footer.tagline')}
           </p>
           <div className="space-y-2 text-sm">
@@ -22,7 +22,7 @@ export function Footer() {
         </div>
 
         <div>
-          <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.platform')}</h4>
+          <h4 className="text-sidebar-foreground font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.platform')}</h4>
           <div className="space-y-3 text-sm">
             <Link to="/courses" className="block hover:text-blue-400 transition-colors">{t('footer.courses')}</Link>
             <Link to="/exercises" className="block hover:text-blue-400 transition-colors">{t('footer.exercises')}</Link>
@@ -33,7 +33,7 @@ export function Footer() {
         </div>
 
         <div>
-          <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.disciplines')}</h4>
+          <h4 className="text-sidebar-foreground font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.disciplines')}</h4>
           <div className="space-y-3 text-sm">
             <Link to="/courses?category=languages" className="block hover:text-blue-400 transition-colors">{t('categories.languages')}</Link>
             <Link to="/courses?category=exam-prep" className="block hover:text-blue-400 transition-colors">{t('footer.examPreparation')}</Link>
@@ -45,7 +45,7 @@ export function Footer() {
         </div>
 
         <div>
-          <h4 className="text-white font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.legal')}</h4>
+          <h4 className="text-sidebar-foreground font-semibold mb-4 text-sm uppercase tracking-wider">{t('footer.legal')}</h4>
           <div className="space-y-3 text-sm">
             <Link to="/terms" className="block hover:text-blue-400 transition-colors">{t('footer.termsOfService')}</Link>
             <Link to="/privacy" className="block hover:text-blue-400 transition-colors">{t('footer.privacyPolicy')}</Link>

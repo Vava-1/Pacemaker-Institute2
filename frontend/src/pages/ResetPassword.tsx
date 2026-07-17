@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
-import { trpc } from "../lib/trpc";
+import { useSearchParams, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle } from "lucide-react";
+import { trpc } from "@/providers/trpc";
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -22,9 +21,7 @@ export default function ResetPassword() {
     }
   }, [token]);
 
-  const resetMutation = useMutation({
-    mutationFn: (data: { token: string; password: string }) =>
-      trpc.auth.resetPassword.mutate(data),
+  const resetMutation = trpc.auth.resetPassword.useMutation({
     onSuccess: (data) => {
       setSuccess(true);
       toast.success(data.message);

@@ -44,6 +44,7 @@ webhookRouter.post("/stripe", async (c) => {
     return c.json({ success: true, alreadyProcessed: true });
   }
 
+  let processingError: Error | null = null;
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -56,6 +57,7 @@ webhookRouter.post("/stripe", async (c) => {
 
         const userId = session.metadata?.userId;
         if (!userId) {
+          // Permanent client error — return 400 so Stripe doesn't retry forever.
           return c.json({ success: false, error: "Missing userId in session metadata" }, 400);
         }
 
@@ -163,10 +165,17 @@ webhookRouter.post("/stripe", async (c) => {
         logger.info("Unhandled webhook event type", { type: event.type });
     }
   } catch (err: any) {
-    logger.error("Webhook handler error", { type: event.type, error: err.message });
-    // Return 200 to prevent Stripe from retrying on processing errors
+    processingError = err;
+    logger.error("Webhook handler error", { type: event.type, error: err.message, stack: err.stack });
   }
 
+  if (processingError) {
+    // Transient errors (DB down, race) — return 500 so Stripe retries.
+    // Do NOT record the event as processed.
+    return c.json({ success: false, error: "Webhook processing failed — will be retried" }, 500);
+  }
+
+  // Success — record idempotency key.
   await db.insert(processedWebhooks).values({
     eventId: event.id,
     eventType: event.type,

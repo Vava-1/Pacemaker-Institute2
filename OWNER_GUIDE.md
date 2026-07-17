@@ -21,14 +21,24 @@
 
 ### First Login
 
-After deployment, use the admin credentials created during seeding:
+After deployment, the seed script creates an admin account using credentials
+from the following environment variables (or randomized defaults that are
+printed ONCE to the server logs at seed time):
 
 ```
-Email: admin@pacemaker.institute
-Password: Admin123!
+SEED_ADMIN_EMAIL      (default: admin@pacemaker.institute)
+SEED_ADMIN_PASSWORD   (default: random — check server logs)
 ```
 
-> **⚠️ IMPORTANT:** Change the admin password immediately after first login!
+To set your own credentials, configure those env vars in Railway/Render
+**before** the first deploy, then run the seed. The password is printed in
+plain text in the seed output exactly once, then stored only as a bcrypt
+hash. Rotate it immediately from **Profile → Change Password** after first
+login.
+
+> **⚠️ IMPORTANT:** Never commit a real password to the repository. The
+> seed config in `backend/db/seed.ts` deliberately reads from env vars so
+> production credentials never touch source control.
 
 ### Initial Setup Checklist
 
