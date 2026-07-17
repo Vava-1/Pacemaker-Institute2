@@ -11,18 +11,27 @@ export function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (isLoading) return <div className="flex h-screen items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-2 border-teal-600 border-t-transparent" /></div>
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    )
+  }
   if (!hasPermission(role, 'access_admin')) return <Navigate to="/" replace />
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <AdminSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(prev => !prev)} />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div
+        className={cn(
+          'flex flex-1 flex-col overflow-hidden transition-[margin] duration-200',
+          // When the sidebar is collapsed, give the main content more room.
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-60',
+        )}
+      >
         <AdminHeader />
-        <main className={cn(
-          'flex-1 overflow-y-auto',
-          sidebarCollapsed ? 'px-6 py-6' : 'px-6 py-6',
-        )}>
+        <main className="flex-1 overflow-y-auto px-6 py-6">
           <Outlet />
         </main>
       </div>
